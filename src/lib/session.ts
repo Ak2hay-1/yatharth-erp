@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Role } from "@prisma/client";
 import { auth } from "@/auth";
+import { getLicenseStatus, isLicenseEnforced } from "@/lib/license";
 import { normalizeRole } from "@/lib/permissions";
 
 export type SessionUser = {
@@ -9,6 +10,12 @@ export type SessionUser = {
   email: string;
   role: Role;
 };
+
+export function requireLicense() {
+  if (isLicenseEnforced() && !getLicenseStatus().ok) {
+    redirect("/activate");
+  }
+}
 
 export async function getSessionUser(): Promise<SessionUser | null> {
   const session = await auth();
@@ -22,6 +29,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 }
 
 export async function requireUser(): Promise<SessionUser> {
+  requireLicense();
   const user = await getSessionUser();
   if (!user) redirect("/login");
   return user;

@@ -39,7 +39,7 @@ npm run db:setup          # once — seeds prisma/dev.db used as the template DB
 npm run dist:win          # Next standalone + electron-builder NSIS
 ```
 
-The installer lands in `dist-installer/` as **`Yatharth Foods ERP-Setup-0.1.0.exe`**. Run it to install under Program Files with Start Menu and Desktop shortcuts. App data (SQLite, uploads, backups) is stored under `%AppData%\Yatharth Foods ERP` so it survives reinstalls.
+The installer lands in `dist-installer/` as **`Yatharth Foods ERP-Setup-0.1.1.exe`**. Run it to install under Program Files with Start Menu and Desktop shortcuts. App data (SQLite, uploads, backups) is stored under `%AppData%\Yatharth Foods ERP` so it survives reinstalls. After install, the app asks for the Yatharth product key once per PC.
 
 If an older build fails with a timeout on port `3847`, install this newer Setup.exe over it (the Next server must live in `resources/next-server`, not `resources/app`).
 

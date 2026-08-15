@@ -1,7 +1,7 @@
 "use strict";
 
-const { app, BrowserWindow, dialog, shell, utilityProcess } = require("electron");
-const { spawn } = require("child_process");
+const { app, BrowserWindow, dialog, ipcMain, shell, utilityProcess } = require("electron");
+const { spawn, execFileSync } = require("child_process");
 const http = require("http");
 const path = require("path");
 const fs = require("fs");
@@ -150,6 +150,41 @@ function toSqliteFileUrl(absolutePath) {
   return `file:${path.resolve(absolutePath).replace(/\\/g, "/")}`;
 }
 
+function readWindowsMachineGuid() {
+  if (process.platform !== "win32") return null;
+  try {
+    const out = execFileSync(
+      "reg",
+      ["query", "HKLM\\SOFTWARE\\Microsoft\\Cryptography", "/v", "MachineGuid"],
+      { encoding: "utf8", windowsHide: true, timeout: 5000 },
+    );
+    const match = out.match(/MachineGuid\s+REG_SZ\s+([0-9a-fA-F-]+)/);
+    return match ? match[1].trim().replace(/[{}]/g, "").toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+function ensureMachineId(userData) {
+  const machineIdPath = path.join(userData, "machine-id.txt");
+  let machineId = readWindowsMachineGuid();
+  if (!machineId && fs.existsSync(machineIdPath)) {
+    machineId = fs
+      .readFileSync(machineIdPath, "utf8")
+      .trim()
+      .replace(/[{}]/g, "")
+      .toLowerCase();
+  }
+  if (machineId) {
+    try {
+      fs.writeFileSync(machineIdPath, machineId, "utf8");
+    } catch {
+      // ignore
+    }
+  }
+  return machineId || "";
+}
+
 function ensureUserData() {
   const userData = app.getPath("userData");
   fs.mkdirSync(userData, { recursive: true });
@@ -183,10 +218,13 @@ function ensureUserData() {
     fs.writeFileSync(secretPath, authSecret, "utf8");
   }
 
+  const machineId = ensureMachineId(userData);
+
   return {
     userData,
     dbPath,
     authSecret,
+    machineId,
     databaseUrl: toSqliteFileUrl(dbPath),
   };
 }
@@ -237,7 +275,7 @@ function onServerExit(code, signal) {
 
 function startPackagedServer() {
   activePort = PACKAGED_PORT;
-  const { userData, authSecret, databaseUrl } = ensureUserData();
+  const { userData, authSecret, databaseUrl, machineId } = ensureUserData();
   const { cwd, serverJs } = findStandaloneServerJs();
   assertPackagedServerLayout(cwd);
 
@@ -249,6 +287,7 @@ function startPackagedServer() {
     AUTH_SECRET: authSecret,
     DATABASE_URL: databaseUrl,
     YATHARTH_DATA_DIR: userData,
+    YATHARTH_MACHINE_ID: machineId,
     FORCE_COLOR: "0",
     NODE_ENV: "production",
   };
@@ -376,6 +415,16 @@ function createWindow() {
 
   return mainWindow.loadURL(appUrl());
 }
+
+ipcMain.handle("pick-backup-folder", async () => {
+  const win = BrowserWindow.getFocusedWindow() || mainWindow;
+  const result = await dialog.showOpenDialog(win ?? undefined, {
+    title: "Choose backup folder",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (result.canceled) return null;
+  return result.filePaths[0] ?? null;
+});
 
 async function bootstrap() {
   try {

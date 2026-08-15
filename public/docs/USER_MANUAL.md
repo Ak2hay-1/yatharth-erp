@@ -288,9 +288,9 @@ Open it every morning before planning purchases and production.
 
 1. **Settings** — company GSTIN, FSSAI, address, bank (appear on printed invoices).
 2. **Settings → Users** — create Admin / Staff / Super Admin accounts.
-3. **Backup & restore** — download a copy of the SQLite database (`.db`) regularly; restore only when you intend to replace current data.
+3. **Backup & restore** — download a copy of the SQLite database (`.db`), or enable **automatic backup** to a folder you choose (USB / cloud), with a time of day and how often (hours, days, or weeks). Restore only when you intend to replace current data.
 
-**Tip:** Keep backups on a USB drive or cloud folder after each busy day.
+**Tip:** Keep backups on a USB drive or cloud folder. The app must be open at the scheduled time; a missed backup runs the next time you open it.
 
 ---
 

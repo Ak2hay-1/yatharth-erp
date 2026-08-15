@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 import { signOut } from "next-auth/react";
+import { AutoBackupPanel } from "@/components/auto-backup-panel";
 import { Button, Card } from "@/components/ui";
+import type { AutoBackupSettings } from "@/lib/auto-backup-config";
 
 type Status = { kind: "idle" } | { kind: "busy"; message: string } | { kind: "error"; message: string };
 
@@ -26,7 +28,13 @@ async function downloadCurrentBackup(): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
-export function BackupRestorePanel() {
+export function BackupRestorePanel({
+  autoBackup,
+  nextDue,
+}: {
+  autoBackup: AutoBackupSettings;
+  nextDue: string | null;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
@@ -95,6 +103,10 @@ export function BackupRestorePanel() {
         Offline backup is a full copy of the SQLite database (all masters, stock, documents, users,
         and settings). Restore replaces the entire live system with that file.
       </p>
+
+      <div className="mt-4">
+        <AutoBackupPanel settings={autoBackup} nextDue={nextDue} />
+      </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Button type="button" variant="secondary" disabled={busy} onClick={handleDownload}>

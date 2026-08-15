@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getLicenseStatus, isActivatePath, isLicenseEnforced } from "@/lib/license";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET,
@@ -38,11 +39,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     authorized({ auth: session, request }) {
       const path = request.nextUrl.pathname;
       if (
+        isActivatePath(path) ||
         path.startsWith("/login") ||
         path.startsWith("/api/auth") ||
         path.startsWith("/media/") ||
         /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/i.test(path)
       ) {
+        return true;
+      }
+      // Unlicensed: do not send NextAuth to /login. Proxy redirects to /activate.
+      if (isLicenseEnforced() && !getLicenseStatus().ok) {
         return true;
       }
       return !!session?.user;
