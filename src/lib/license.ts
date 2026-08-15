@@ -30,6 +30,10 @@ export type LicenseStatus = {
 
 export function isLicenseEnforced(): boolean {
   if (process.env.YATHARTH_SKIP_LICENSE === "1") return false;
+  // Do not bake license redirects into static HTML during `next build`.
+  if (process.env.NEXT_PHASE === "phase-production-build" || process.env.NEXT_PHASE === "phase-export") {
+    return false;
+  }
   return process.env.NODE_ENV === "production";
 }
 
