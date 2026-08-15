@@ -7,11 +7,12 @@ import { hash } from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { signIn, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { requireRole, requireUser } from "@/lib/session";
+import { requireLicense, requireRole, requireUser } from "@/lib/session";
 import { ASSIGNABLE_ROLES, SUPER_ADMIN_ONLY } from "@/lib/permissions";
 import { rethrowRedirect, requiredString } from "@/lib/utils";
 
 export async function loginAction(_prev: { error?: string } | undefined, formData: FormData) {
+  requireLicense();
   try {
     await signIn("credentials", {
       email: String(formData.get("email") ?? ""),

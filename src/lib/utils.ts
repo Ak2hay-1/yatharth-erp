@@ -33,6 +33,18 @@ export function formatDate(d: Date | string | null | undefined) {
   return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+export function formatDateTime(d: Date | string | null | undefined) {
+  if (!d) return "—";
+  const date = typeof d === "string" ? new Date(d) : d;
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function toInputDate(d?: Date | string | null) {
   const date = d ? new Date(d) : new Date();
   const yyyy = date.getFullYear();

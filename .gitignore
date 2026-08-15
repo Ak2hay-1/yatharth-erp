@@ -45,6 +45,9 @@ yarn-error.log*
 *.db-shm
 prisma/dev.db
 prisma/backups/
+auto-backup.json
+/license.json
+/machine-id.txt
 
 # uploaded plant documents (SOPs, etc.)
 /uploads/
