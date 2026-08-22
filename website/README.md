@@ -16,9 +16,14 @@ Open http://localhost:3002
 
 ## Vercel deploy
 
-1. Import repo in [Vercel](https://vercel.com/new), set **Root Directory** to `website`.
-2. Add custom domain **yatharthafoods.in** (and optionally `www.yatharthafoods.in`).
-3. Environment variables (Production):
+Vercel may auto-detect the ERP app at repo root and `services/sync-api`. **Only deploy `website/`** — the ERP runs on the office PC and sync-api runs on the Vultr VM.
+
+### If you see the "Services" import screen
+
+1. Keep **Framework Preset → Services** (repo root has `vercel.json` for this).
+2. You should see one service: **website** (Next.js in `website/`).
+3. **Delete** the auto-detected ERP env vars (`DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`).
+4. Add these instead (Production):
 
    | Variable | Value |
    |----------|--------|
@@ -26,12 +31,22 @@ Open http://localhost:3002
    | `NEXT_PUBLIC_API_URL` | `https://api.yatharthafoods.in` |
    | `REVALIDATE_WEBHOOK_SECRET` | Same as VM `REVALIDATE_WEBHOOK_SECRET` |
 
-4. After DNS propagates, confirm:
+5. Click **Deploy**.
+
+### Alternative: single Next.js project (no Services)
+
+1. Set **Framework Preset → Next.js** (not Services).
+2. **Root Directory → Edit → `website`**
+3. Add the three env vars above.
+4. Deploy.
+
+### After deploy
+
+1. Add custom domain **yatharthafoods.in** in Vercel → Domains.
+2. Confirm:
    - https://yatharthafoods.in loads
    - https://yatharthafoods.in/sitemap.xml
    - VM `VERCEL_REVALIDATE_URL` = `https://yatharthafoods.in/api/revalidate`
-
-Copy `public/logo.png` from ERP `media/logo.png` before deploy (already in repo if synced).
 
 ## DNS (website)
 
