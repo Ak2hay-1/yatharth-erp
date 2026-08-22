@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yatharth
+      POSTGRES_PASSWORD: yatharth
+      POSTGRES_DB: yatharth_sync
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yatharth -d yatharth_sync"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3005:3001"
+    environment:
+      DATABASE_URL: postgresql://yatharth:yatharth@postgres:5432/yatharth_sync
+      PORT: "3001"
+      HOST: 0.0.0.0
+      SYNC_SECRET: ${SYNC_SECRET:-change-me-in-production}
+      WEBSITE_ORIGIN: ${WEBSITE_ORIGIN:-http://localhost:3002}
+      UPLOAD_DIR: /data/uploads
+      VERCEL_REVALIDATE_URL: ${VERCEL_REVALIDATE_URL:-}
+      REVALIDATE_WEBHOOK_SECRET: ${REVALIDATE_WEBHOOK_SECRET:-}
+    volumes:
+      - uploads:/data/uploads
+
+volumes:
+  pgdata:
+  uploads:

@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SyncedProduct {
+  id           String   @id @default(cuid())
+  sku          String   @unique
+  name         String
+  category     String
+  lane         String   @default("")
+  tier         String   @default("")
+  packSize     String   @default("")
+  unitsPerPkt  Int      @default(1)
+  usp          Float    @default(0)
+  rateB2b      Float    @default(0)
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  erpUpdatedAt DateTime?
+  syncedAt     DateTime @updatedAt
+  assets       SyncedAsset[]
+
+  @@index([category, isActive])
+}
+
+model SyncedCompany {
+  id        String   @id @default("default")
+  name      String
+  legalName String   @default("")
+  address   String   @default("")
+  city      String   @default("")
+  state     String   @default("")
+  pincode   String   @default("")
+  phone     String   @default("")
+  email     String   @default("")
+  gstin     String   @default("")
+  fssai     String   @default("")
+  syncedAt  DateTime @updatedAt
+}
+
+model SyncedAsset {
+  id         String        @id @default(cuid())
+  productId  String
+  product    SyncedProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku        String
+  kind       String        @default("OTHER")
+  title      String        @default("")
+  fileName   String
+  mimeType   String
+  publicUrl  String
+  sortOrder  Int           @default(0)
+  syncedAt   DateTime      @updatedAt
+
+  @@index([sku])
+}
+
+model SyncEvent {
+  id         String   @id @default(cuid())
+  machineId  String
+  kind       String
+  payloadHash String  @default("")
+  itemCount  Int      @default(0)
+  ok         Boolean  @default(true)
+  error      String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model ContactInquiry {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String   @default("")
+  message   String
+  createdAt DateTime @default(now())
+}

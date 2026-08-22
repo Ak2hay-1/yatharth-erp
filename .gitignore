@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+website/node_modules
+services/sync-api/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -15,10 +17,12 @@
 
 # next.js
 /.next/
+website/.next/
 /out/
 
 # production
 /build
+services/sync-api/dist/
 /dist-installer/
 /packaging/resources/
 /packaging/app/
