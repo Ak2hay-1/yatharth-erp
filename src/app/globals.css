@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+:root {
+  --graphite-900: #23262c;
+  --graphite-700: #3a3f47;
+  --orange: #fe7733;
+  --white: #ffffff;
+  --sprout: #b1fa63;
+
+  --bg: color-mix(in srgb, var(--graphite-900) 4%, var(--white));
+  --ink: var(--graphite-900);
+  --muted: var(--graphite-700);
+  --card: var(--white);
+  --line: color-mix(in srgb, var(--graphite-900) 12%, var(--white));
+  --forest: var(--graphite-900);
+  --forest-2: var(--graphite-700);
+  --saffron: var(--orange);
+  --saffron-2: color-mix(in srgb, var(--orange) 82%, var(--graphite-900));
+  --ok: var(--graphite-900);
+  --warn: var(--orange);
+  --bad: #b42318;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-forest: var(--forest);
+  --color-forest-2: var(--forest-2);
+  --color-saffron: var(--saffron);
+  --color-sprout: var(--sprout);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --font-sans: var(--font-dm);
+  --font-display: var(--font-nunito);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-dm), ui-sans-serif, system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-nunito), var(--font-dm), ui-sans-serif, system-ui, sans-serif;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+.print-sheet {
+  background: white;
+  color: #111;
+}
+
+@media print {
+  nav,
+  aside,
+  .no-print {
+    display: none !important;
+  }
+  body,
+  html {
+    background: white;
+  }
+}

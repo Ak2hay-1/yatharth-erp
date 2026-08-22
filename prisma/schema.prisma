@@ -1,0 +1,756 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  STAFF
+}
+
+enum ItemType {
+  RAW
+  PACKING
+  FINISHED
+}
+
+enum PartyKind {
+  CUSTOMER
+  SUPPLIER
+  BOTH
+}
+
+enum CustomerChannel {
+  B2B
+  B2C
+}
+
+enum ProductLane {
+  NONE
+  POTATO_VEG
+  CHICKEN
+  PANEER_CHEESE
+}
+
+enum SkuTier {
+  NONE
+  HERO
+  CORE
+  CUSTOM
+}
+
+enum PackType {
+  NONE
+  HORECA
+  RETAIL
+}
+
+enum BuyerCluster {
+  NONE
+  QSR_CAFE
+  RESTAURANT_HOTEL
+  CATERER
+  DISTRIBUTOR
+}
+
+enum PartyLifecycle {
+  PROSPECT
+  CUSTOMER
+  INACTIVE
+}
+
+enum SalesOrderKind {
+  SAMPLE
+  TRIAL
+  COMMERCIAL
+}
+
+enum WasteCause {
+  PRODUCTION
+  FREEZER
+  RETURN
+  OTHER
+}
+
+enum ComplaintStatus {
+  OPEN
+  ROOT_CAUSE
+  CHANGE
+  NEW_SAMPLE
+  TEST
+  STANDARDISED
+  CLOSED
+}
+
+enum ComplaintIssue {
+  DRY
+  SIZE
+  COATING
+  WEIGHT
+  THAW
+  DELIVERY
+  TASTE
+  OTHER
+}
+
+enum DocStatus {
+  DRAFT
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum StockMoveType {
+  PURCHASE
+  PRODUCTION_IN
+  PRODUCTION_OUT
+  SALE
+  WASTE
+  ADJUST
+}
+
+enum BatchSource {
+  PURCHASE
+  PRODUCTION
+  ADJUST
+}
+
+enum PaymentDirection {
+  IN
+  OUT
+}
+
+enum PaymentMode {
+  CASH
+  UPI
+  NEFT
+  CHEQUE
+  OTHER
+}
+
+model User {
+  id           String          @id @default(cuid())
+  name         String
+  email        String          @unique
+  passwordHash String
+  role         Role            @default(STAFF)
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  documents    PlantDocument[]
+}
+
+model Company {
+  id                   String @id @default("default")
+  name                 String
+  legalName            String
+  gstin                String
+  fssai                String
+  address              String
+  city                 String
+  state                String
+  stateCode            String
+  pincode              String
+  phone                String
+  email                String
+  bankName             String @default("")
+  bankAccount          String @default("")
+  ifsc                 String @default("")
+  financialYearStart   String @default("04-01")
+  markupB2bPct         Float  @default(20)
+  markupWholesalePct   Float  @default(25)
+  markupDistributorPct Float  @default(35)
+  markupMrpPct         Float  @default(50)
+}
+
+model Sequence {
+  key  String @id
+  last Int
+}
+
+model Item {
+  id            String      @id @default(cuid())
+  sku           String      @unique
+  name          String
+  type          ItemType
+  unit          String
+  hsn           String      @default("")
+  gstRate       Float       @default(5)
+  shelfLifeDays Int         @default(30)
+  reorderLevel  Float       @default(0)
+  sellingPrice  Float       @default(0)
+  purchasePrice Float       @default(0)
+  lane          ProductLane @default(NONE)
+  tier          SkuTier     @default(NONE)
+  packType      PackType    @default(NONE)
+  packSize      String      @default("")
+  unitsPerPkt   Int         @default(1)
+  gateTaste     Boolean     @default(false)
+  gateCost      Boolean     @default(false)
+  gateMargin    Boolean     @default(false)
+  gateProduction Boolean    @default(false)
+  gatePackaging Boolean     @default(false)
+  gateShelfLife Boolean     @default(false)
+  gateAcceptance Boolean    @default(false)
+  gateRepeat    Boolean     @default(false)
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+
+  mfgCost            Float         @default(0)
+  usp                Float         @default(0)
+  rateB2b            Float         @default(0)
+  rateWholesale      Float         @default(0)
+  rateDistributor    Float         @default(0)
+  rateMrp            Float         @default(0)
+  overrideB2bPct     Float?
+  overrideWholesalePct Float?
+  overrideDistributorPct Float?
+  overrideMrpPct     Float?
+  mfgCostSource      MfgCostSource @default(NONE)
+  mfgCostUpdatedAt   DateTime?
+
+  recipeOutput     Recipe?
+  recipeLines      RecipeLine[]
+  batches          Batch[]
+  stockMoves       StockMove[]
+  poLines          PurchaseOrderLine[]
+  grnLines         GoodsReceiptLine[]
+  billLines        SupplierBillLine[]
+  soLines          SalesOrderLine[]
+  invoiceLines     InvoiceLine[]
+  complaints       Complaint[]
+  label            ItemLabel?
+  costAttachments  ItemCostAttachment[]
+  productAssets    ProductAsset[]
+}
+
+model Recipe {
+  id             String              @id @default(cuid())
+  finishedItemId String              @unique
+  finishedItem   Item                @relation(fields: [finishedItemId], references: [id])
+  name           String
+  outputQty      Float
+  notes          String              @default("")
+  lines          RecipeLine[]
+  workOrders     WorkOrder[]
+  translations   RecipeTranslation[]
+}
+
+model RecipeLine {
+  id       String @id @default(cuid())
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  itemId   String
+  item     Item   @relation(fields: [itemId], references: [id])
+  qty      Float
+}
+
+model Party {
+  id               String           @id @default(cuid())
+  name             String
+  kind             PartyKind
+  channel          CustomerChannel?
+  cluster          BuyerCluster     @default(NONE)
+  lifecycle        PartyLifecycle   @default(CUSTOMER)
+  gstin            String           @default("")
+  phone            String           @default("")
+  email            String           @default("")
+  billingAddress   String           @default("")
+  shippingAddress  String           @default("")
+  city             String           @default("")
+  state            String           @default("")
+  stateCode        String           @default("")
+  pincode          String           @default("")
+  creditLimit      Float            @default(0)
+  paymentTermsDays Int              @default(30)
+  reorderCycleDays Int              @default(30)
+  nextReorderDate  DateTime?
+  lastOrderAt      DateTime?
+  lostReason       String           @default("")
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+
+  purchaseOrders PurchaseOrder[]
+  supplierBills  SupplierBill[]
+  salesOrders    SalesOrder[]
+  invoices       Invoice[]
+  payments       Payment[]
+  complaints     Complaint[]
+}
+
+model Batch {
+  id         String      @id @default(cuid())
+  itemId     String
+  item       Item        @relation(fields: [itemId], references: [id])
+  lotNo      String
+  mfgDate    DateTime?
+  expiryDate DateTime?
+  qtyOnHand  Float       @default(0)
+  source     BatchSource
+  sourceId   String      @default("")
+  createdAt  DateTime    @default(now())
+
+  stockMoves   StockMove[]
+  invoiceLines InvoiceLine[]
+  complaints   Complaint[]
+
+  @@unique([itemId, lotNo])
+}
+
+model StockMove {
+  id         String        @id @default(cuid())
+  itemId     String
+  item       Item          @relation(fields: [itemId], references: [id])
+  batchId    String
+  batch      Batch         @relation(fields: [batchId], references: [id])
+  type       StockMoveType
+  qty        Float
+  wasteCause WasteCause?
+  refType    String
+  refId      String
+  notes      String        @default("")
+  createdAt  DateTime      @default(now())
+}
+
+model PurchaseOrder {
+  id         String              @id @default(cuid())
+  number     String              @unique
+  supplierId String
+  supplier   Party               @relation(fields: [supplierId], references: [id])
+  date       DateTime
+  status     DocStatus           @default(DRAFT)
+  notes      String              @default("")
+  createdAt  DateTime            @default(now())
+  lines      PurchaseOrderLine[]
+  receipts   GoodsReceipt[]
+}
+
+model PurchaseOrderLine {
+  id     String        @id @default(cuid())
+  poId   String
+  po     PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  itemId String
+  item   Item          @relation(fields: [itemId], references: [id])
+  qty    Float
+  rate   Float
+}
+
+model GoodsReceipt {
+  id        String             @id @default(cuid())
+  number    String             @unique
+  poId      String
+  po        PurchaseOrder      @relation(fields: [poId], references: [id])
+  date      DateTime
+  status    DocStatus          @default(DRAFT)
+  notes     String             @default("")
+  createdAt DateTime           @default(now())
+  lines     GoodsReceiptLine[]
+  bills     SupplierBill[]
+}
+
+model GoodsReceiptLine {
+  id         String       @id @default(cuid())
+  grnId      String
+  grn        GoodsReceipt @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  itemId     String
+  item       Item         @relation(fields: [itemId], references: [id])
+  qty        Float
+  lotNo      String
+  mfgDate    DateTime?
+  expiryDate DateTime?
+  batchId    String?
+}
+
+model SupplierBill {
+  id           String              @id @default(cuid())
+  number       String              @unique
+  supplierId   String
+  supplier     Party               @relation(fields: [supplierId], references: [id])
+  grnId        String?
+  grn          GoodsReceipt?       @relation(fields: [grnId], references: [id])
+  date         DateTime
+  status       DocStatus           @default(DRAFT)
+  isInterstate Boolean             @default(false)
+  taxable      Float               @default(0)
+  cgst         Float               @default(0)
+  sgst         Float               @default(0)
+  igst         Float               @default(0)
+  total        Float               @default(0)
+  paid         Float               @default(0)
+  notes        String              @default("")
+  createdAt    DateTime            @default(now())
+  lines        SupplierBillLine[]
+  allocations  PaymentAllocation[]
+}
+
+model SupplierBillLine {
+  id      String       @id @default(cuid())
+  billId  String
+  bill    SupplierBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  itemId  String
+  item    Item         @relation(fields: [itemId], references: [id])
+  qty     Float
+  rate    Float
+  hsn     String       @default("")
+  gstRate Float
+  taxable Float
+  cgst    Float
+  sgst    Float
+  igst    Float
+}
+
+model WorkOrder {
+  id         String             @id @default(cuid())
+  number     String             @unique
+  recipeId   String
+  recipe     Recipe             @relation(fields: [recipeId], references: [id])
+  plannedQty Float
+  date       DateTime
+  status     DocStatus          @default(DRAFT)
+  notes      String             @default("")
+  createdAt  DateTime           @default(now())
+  batches    ProductionBatch[]
+}
+
+model ProductionBatch {
+  id           String    @id @default(cuid())
+  number       String    @unique
+  workOrderId  String
+  workOrder    WorkOrder @relation(fields: [workOrderId], references: [id])
+  outputQty    Float
+  wastageQty   Float     @default(0)
+  rejectQty    Float     @default(0)
+  unitCost     Float     @default(0)
+  totalCost    Float     @default(0)
+  lotNo        String
+  mfgDate      DateTime
+  expiryDate   DateTime?
+  batchId      String?
+  operator     String    @default("")
+  actualWeight Float?
+  coatingOk    Boolean   @default(true)
+  bmrNotes     String    @default("")
+  status       DocStatus @default(DRAFT)
+  notes        String    @default("")
+  createdAt    DateTime  @default(now())
+}
+
+model SalesOrder {
+  id                   String          @id @default(cuid())
+  number               String          @unique
+  customerId           String
+  customer             Party           @relation(fields: [customerId], references: [id])
+  channel              CustomerChannel
+  kind                 SalesOrderKind  @default(COMMERCIAL)
+  date                 DateTime
+  promisedDate         DateTime?
+  status               DocStatus       @default(DRAFT)
+  notes                String          @default("")
+  feedbackUseCase      String          @default("")
+  feedbackTaste        String          @default("")
+  feedbackSize         String          @default("")
+  feedbackCoating      String          @default("")
+  feedbackKitchenWaste String          @default("")
+  feedbackNotes        String          @default("")
+  feedbackAt           DateTime?
+  createdAt            DateTime        @default(now())
+  lines                SalesOrderLine[]
+  invoices             Invoice[]
+}
+
+model SalesOrderLine {
+  id     String     @id @default(cuid())
+  soId   String
+  so     SalesOrder @relation(fields: [soId], references: [id], onDelete: Cascade)
+  itemId String
+  item   Item       @relation(fields: [itemId], references: [id])
+  qty    Float
+  rate   Float
+}
+
+model Invoice {
+  id            String              @id @default(cuid())
+  number        String              @unique
+  salesOrderId  String?
+  salesOrder    SalesOrder?         @relation(fields: [salesOrderId], references: [id])
+  customerId    String
+  customer      Party               @relation(fields: [customerId], references: [id])
+  channel       CustomerChannel
+  kind          SalesOrderKind      @default(COMMERCIAL)
+  date          DateTime
+  promisedDate  DateTime?
+  status        DocStatus           @default(DRAFT)
+  placeOfSupply String              @default("")
+  isInterstate  Boolean             @default(false)
+  taxable       Float               @default(0)
+  cgst          Float               @default(0)
+  sgst          Float               @default(0)
+  igst          Float               @default(0)
+  total         Float               @default(0)
+  paid          Float               @default(0)
+  notes         String              @default("")
+  createdAt     DateTime            @default(now())
+  lines         InvoiceLine[]
+  challans      DeliveryChallan[]
+  allocations   PaymentAllocation[]
+  complaints    Complaint[]
+}
+
+model InvoiceLine {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      Item    @relation(fields: [itemId], references: [id])
+  batchId   String?
+  batch     Batch?  @relation(fields: [batchId], references: [id])
+  qty       Float
+  rate      Float
+  hsn       String  @default("")
+  gstRate   Float
+  taxable   Float
+  cgst      Float
+  sgst      Float
+  igst      Float
+}
+
+model DeliveryChallan {
+  id                   String   @id @default(cuid())
+  number               String   @unique
+  invoiceId            String
+  invoice              Invoice  @relation(fields: [invoiceId], references: [id])
+  date                 DateTime
+  vehicleNo            String   @default("")
+  notes                String   @default("")
+  freezerOk            Boolean  @default(false)
+  sealOk               Boolean  @default(false)
+  dispatchedAt         DateTime?
+  customerFreezerNote  String   @default("")
+}
+
+model Payment {
+  id          String              @id @default(cuid())
+  number      String              @unique
+  direction   PaymentDirection
+  partyId     String
+  party       Party               @relation(fields: [partyId], references: [id])
+  amount      Float
+  date        DateTime
+  mode        PaymentMode
+  reference   String              @default("")
+  notes       String              @default("")
+  createdAt   DateTime            @default(now())
+  allocations PaymentAllocation[]
+}
+
+model PaymentAllocation {
+  id             String        @id @default(cuid())
+  paymentId      String
+  payment        Payment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceId      String?
+  invoice        Invoice?      @relation(fields: [invoiceId], references: [id])
+  supplierBillId String?
+  supplierBill   SupplierBill? @relation(fields: [supplierBillId], references: [id])
+  amount         Float
+}
+
+model Complaint {
+  id             String                @id @default(cuid())
+  number         String                @unique
+  customerId     String
+  customer       Party                 @relation(fields: [customerId], references: [id])
+  itemId         String?
+  item           Item?                 @relation(fields: [itemId], references: [id])
+  batchId        String?
+  batch          Batch?                @relation(fields: [batchId], references: [id])
+  invoiceId      String?
+  invoice        Invoice?              @relation(fields: [invoiceId], references: [id])
+  issue          ComplaintIssue
+  description    String
+  rootCause      String                @default("")
+  correction     String                @default("")
+  resampleNotes  String                @default("")
+  sopNote        String                @default("")
+  status         ComplaintStatus       @default(OPEN)
+  createdAt      DateTime              @default(now())
+  closedAt       DateTime?
+  attachments    ComplaintAttachment[]
+}
+
+model MonthlyReview {
+  id               String   @id @default(cuid())
+  month            String   @unique
+  systemToImprove  String   @default("")
+  notes            String   @default("")
+  updatedAt        DateTime @updatedAt
+}
+
+enum MfgCostSource {
+  NONE
+  RECIPE
+  LAST_BATCH
+  MANUAL
+}
+
+enum VegMark {
+  NA
+  VEG
+  NON_VEG
+}
+
+enum ProductAssetKind {
+  PACK_SHOT
+  LABEL_ART
+  PROCESS
+  OTHER
+}
+
+enum ContentLocale {
+  en_IN
+  en_US
+  en_GB
+  hi
+  mr
+}
+
+enum DocumentCategory {
+  SOP
+  OTHER
+}
+
+/** Plant SOPs and other saved files (PDF, images, office docs). */
+model PlantDocument {
+  id               String           @id @default(cuid())
+  number           String           @unique
+  category         DocumentCategory
+  title            String
+  version          String           @default("1.0")
+  tag              String           @default("")
+  notes            String           @default("")
+  bodyMd           String           @default("")
+  flowchartMermaid String           @default("")
+  fileName         String           @default("")
+  mimeType         String           @default("")
+  sizeBytes        Int              @default(0)
+  storageKey       String           @default("")
+  uploadedById     String?
+  uploadedBy       User?            @relation(fields: [uploadedById], references: [id])
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  translations     SopTranslation[]
+
+  @@index([category])
+}
+
+model ItemLabel {
+  id                 String               @id @default(cuid())
+  itemId             String               @unique
+  item               Item                 @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  ingredientStatement String              @default("")
+  allergens          String               @default("")
+  containsMayContain String               @default("")
+  claims             String               @default("")
+  netQuantity        String               @default("")
+  vegNonVeg          VegMark              @default(NA)
+  servingSize        String               @default("")
+  servingsPerPack    String               @default("")
+  energyKcal100      Float                @default(0)
+  energyKj100        Float                @default(0)
+  protein100         Float                @default(0)
+  carb100            Float                @default(0)
+  sugars100          Float                @default(0)
+  fat100             Float                @default(0)
+  satFat100          Float                @default(0)
+  transFat100        Float                @default(0)
+  fibre100           Float                @default(0)
+  sodium100          Float                @default(0)
+  energyKcalServe    Float                @default(0)
+  energyKjServe      Float                @default(0)
+  proteinServe       Float                @default(0)
+  carbServe          Float                @default(0)
+  sugarsServe        Float                @default(0)
+  fatServe           Float                @default(0)
+  satFatServe        Float                @default(0)
+  transFatServe      Float                @default(0)
+  fibreServe         Float                @default(0)
+  sodiumServe        Float                @default(0)
+  updatedAt          DateTime             @updatedAt
+  ingredientLines    LabelIngredientLine[]
+}
+
+model LabelIngredientLine {
+  id       String    @id @default(cuid())
+  labelId  String
+  label    ItemLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  name     String
+  sortOrder Int      @default(0)
+  qtyPct   Float?
+}
+
+model ItemCostAttachment {
+  id         String   @id @default(cuid())
+  itemId     String
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  storageKey String
+  notes      String   @default("")
+  createdAt  DateTime @default(now())
+}
+
+model ProductAsset {
+  id         String           @id @default(cuid())
+  itemId     String
+  item       Item             @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  kind       ProductAssetKind @default(OTHER)
+  title      String           @default("")
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  storageKey String
+  notes      String           @default("")
+  createdAt  DateTime         @default(now())
+
+  @@index([itemId])
+}
+
+model ComplaintAttachment {
+  id          String    @id @default(cuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  storageKey  String
+  createdAt   DateTime  @default(now())
+}
+
+model SopTranslation {
+  id               String         @id @default(cuid())
+  documentId       String
+  document         PlantDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  locale           ContentLocale
+  title            String         @default("")
+  bodyMd           String         @default("")
+  flowchartMermaid String         @default("")
+  notes            String         @default("")
+
+  @@unique([documentId, locale])
+}
+
+model RecipeTranslation {
+  id                   String        @id @default(cuid())
+  recipeId             String
+  recipe               Recipe        @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  locale               ContentLocale
+  name                 String        @default("")
+  notes                String        @default("")
+  ingredientNamesJson  String        @default("{}")
+
+  @@unique([recipeId, locale])
+}

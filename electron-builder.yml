@@ -1,0 +1,44 @@
+appId: com.yatharth.erp
+productName: Yatharth Foods ERP
+copyright: Copyright © Yatharth Foods
+afterPack: scripts/after-pack.cjs
+asar: true
+npmRebuild: false
+directories:
+  output: dist-installer
+  buildResources: packaging
+files:
+  - electron/**/*
+  - package.json
+  - "!**/node_modules/**"
+  - "!node_modules"
+  - "!**/.next/**"
+  - "!**/dist-installer/**"
+  - "!**/packaging/**"
+extraResources:
+  - from: packaging/app
+    to: next-server
+    filter:
+      - "**/*"
+      - "**/node_modules/**"
+  - from: packaging/resources/template.db
+    to: template.db
+  - from: packaging/resources/logo.ico
+    to: logo.ico
+win:
+  icon: media/logo.ico
+  # Avoid winCodeSign symlink extraction (needs admin Developer Mode on Windows)
+  signAndEditExecutable: false
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Yatharth Foods ERP
+  installerIcon: media/logo.ico
+  uninstallerIcon: media/logo.ico
+  artifactName: ${productName}-Setup-${version}.${ext}
