@@ -18,13 +18,13 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
-    images: [{ url: "/logo.png", alt: SITE_NAME }],
+    images: [{ url: "/logo.svg", alt: SITE_NAME }],
   },
   twitter: {
     card: "summary",
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
-    images: ["/logo.png"],
+    images: ["/logo.svg"],
   },
   alternates: {
     canonical: SITE_URL,

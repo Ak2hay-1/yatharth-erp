@@ -1,5 +1,7 @@
 const config = {
-  content: ["./src/**/*.{ts,tsx}"],
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
 };
 
 export default config;

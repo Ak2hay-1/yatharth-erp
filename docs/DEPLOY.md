@@ -34,6 +34,36 @@ api.yatharthafoods.in → localhost:3001
 
 Firewall: allow 443 only.
 
+### DNS — `api.yatharthafoods.in` (Cloudflare)
+
+The marketing site (`yatharthafoods.in`) may already point at Vercel/Cloudflare, but the **API subdomain is separate** and must be added manually.
+
+If `Resolve-DnsName api.yatharthafoods.in` returns **DNS name does not exist**, add this record in **Cloudflare → yatharthafoods.in → DNS**:
+
+| Type | Name | Content | Proxy |
+|------|------|---------|-------|
+| **A** | `api` | Your **Vultr VM public IPv4** | **DNS only** (grey cloud) |
+
+Use **DNS only** (not proxied) so Let's Encrypt on the VM can issue a cert for `api.yatharthafoods.in` and traffic goes straight to Caddy/nginx on the VM.
+
+Verify from your PC (PowerShell):
+
+```powershell
+Resolve-DnsName api.yatharthafoods.in
+(Invoke-WebRequest -Uri "https://api.yatharthafoods.in/health" -UseBasicParsing).Content
+```
+
+Expected: DNS shows the VM IP; health returns JSON (e.g. `{"ok":true}`).
+
+**Troubleshooting**
+
+| Symptom | Cause | Fix |
+|---------|--------|-----|
+| `DNS name does not exist` | No `api` A record | Add A record in Cloudflare |
+| Cloudflare **525** | `api` is **proxied** (orange cloud) but VM has no valid HTTPS for Cloudflare to reach | Set `api` to **DNS only** (grey cloud), or install a valid TLS cert on the VM and use SSL mode **Full (strict)** |
+| DNS shows `104.21.x` / `2606:4700:…` | Record is proxied through Cloudflare | For VM + Caddy/Let's Encrypt, prefer **DNS only** |
+| DNS shows your Vultr IP but HTTPS fails | Caddy/nginx or sync-api not running | SSH: `curl http://localhost:3001/health`, check `docker compose ps` |
+
 ## 3. Vercel website
 
 1. Connect GitHub repo to Vercel.

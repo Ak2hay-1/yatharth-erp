@@ -56,3 +56,15 @@ At your domain registrar / DNS host for `yatharthafoods.in`:
 - **www** → CNAME to `cname.vercel-dns.com` (or use Vercel nameservers)
 
 Vercel handles HTTPS automatically once DNS is verified.
+
+## DNS — API subdomain (required for catalog / contact)
+
+The website reads data from **`https://api.yatharthafoods.in`**. This is **not** created automatically when you point the main domain at Vercel.
+
+At **Cloudflare → DNS** (nameservers: `*.ns.cloudflare.com`), add:
+
+| Type | Name | Content |
+|------|------|---------|
+| A | `api` | Vultr VM public IP |
+
+Set proxy to **DNS only** (grey cloud). See `docs/DEPLOY.md` for TLS and health-check steps.

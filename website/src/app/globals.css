@@ -9,12 +9,19 @@
 }
 
 body {
-  background: var(--graphite-900);
-  color: var(--white);
+  background: var(--white);
+  color: #171717;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 
 .font-display {
   font-family: Georgia, "Times New Roman", serif;
   letter-spacing: 0.02em;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

@@ -25,31 +25,48 @@ export function ContactForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-white/10 bg-[#3A3F47]/60 p-6">
+    <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
       <label className="block text-sm">
-        <span className="text-white/60">Name</span>
-        <input name="name" required className="mt-1 w-full rounded-lg border border-white/10 bg-[#23262C] px-3 py-2" />
+        <span className="text-neutral-500">Name</span>
+        <input
+          name="name"
+          required
+          className="mt-1 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-neutral-900"
+        />
       </label>
       <label className="block text-sm">
-        <span className="text-white/60">Email</span>
-        <input name="email" type="email" required className="mt-1 w-full rounded-lg border border-white/10 bg-[#23262C] px-3 py-2" />
+        <span className="text-neutral-500">Email</span>
+        <input
+          name="email"
+          type="email"
+          required
+          className="mt-1 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-neutral-900"
+        />
       </label>
       <label className="block text-sm">
-        <span className="text-white/60">Phone</span>
-        <input name="phone" className="mt-1 w-full rounded-lg border border-white/10 bg-[#23262C] px-3 py-2" />
+        <span className="text-neutral-500">Phone</span>
+        <input
+          name="phone"
+          className="mt-1 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-neutral-900"
+        />
       </label>
       <label className="block text-sm">
-        <span className="text-white/60">Message</span>
-        <textarea name="message" required rows={5} className="mt-1 w-full rounded-lg border border-white/10 bg-[#23262C] px-3 py-2" />
+        <span className="text-neutral-500">Message</span>
+        <textarea
+          name="message"
+          required
+          rows={5}
+          className="mt-1 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-neutral-900"
+        />
       </label>
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-[#FE7733] py-3 text-sm font-semibold text-[#23262C] disabled:opacity-60"
+        className="w-full rounded-lg bg-[#FE7733] py-3 text-sm font-semibold text-white disabled:opacity-60"
       >
         {pending ? "Sending…" : "Send enquiry"}
       </button>
-      {status ? <p className="text-sm text-[#B1FA63]">{status}</p> : null}
+      {status ? <p className="text-sm text-emerald-600">{status}</p> : null}
     </form>
   );
 }
@@ -57,25 +74,25 @@ export function ContactForm() {
 export function ContactDetails() {
   return (
     <div>
-      <h1 className="font-display text-4xl">Contact</h1>
-      <p className="mt-4 text-white/75">Enquiries for distribution, HORECA supply and product samples.</p>
-      <div className="mt-8 space-y-4 rounded-2xl bg-[#3A3F47] p-6 text-sm">
+      <h1 className="font-display text-4xl text-neutral-900">Contact</h1>
+      <p className="mt-4 text-neutral-600">Enquiries for distribution, HORECA supply and product samples.</p>
+      <div className="mt-8 space-y-4 rounded-2xl bg-white p-6 text-sm shadow-sm ring-1 ring-neutral-200">
         <p>
-          <span className="text-white/50">Address</span>
+          <span className="text-neutral-400">Address</span>
           <br />
-          {CONTACT.address}
+          <span className="text-neutral-700">{CONTACT.address}</span>
         </p>
         <p>
-          <span className="text-white/50">Phone / WhatsApp</span>
+          <span className="text-neutral-400">Phone / WhatsApp</span>
           <br />
-          <a href={`tel:${CONTACT.phone}`} className="text-[#FE7733] hover:underline">
+          <a href={`tel:${CONTACT.phone}`} className="text-lg font-semibold text-[#FE7733] hover:underline">
             {CONTACT.phone}
           </a>
         </p>
         <p>
-          <span className="text-white/50">Email</span>
+          <span className="text-neutral-400">Email</span>
           <br />
-          {CONTACT.email}
+          <span className="text-neutral-700">{CONTACT.email}</span>
         </p>
       </div>
     </div>
