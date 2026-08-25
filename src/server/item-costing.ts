@@ -9,6 +9,7 @@ import { MANAGEMENT } from "@/lib/permissions";
 import { parseNum, requiredString } from "@/lib/utils";
 import { itemUnitCost, recipeUnitCost, ratesFromMfg, resolveMarkups, getCompanyMarkups } from "@/server/costing";
 import { removeDocumentFile, saveDocumentFile } from "@/lib/document-storage";
+import { enqueueWebsiteSync } from "@/lib/website-sync";
 
 function parseOptionalPct(value: FormDataEntryValue | null): number | null {
   const raw = String(value ?? "").trim();
@@ -52,6 +53,7 @@ export async function saveItemCosting(itemId: string, formData: FormData) {
     },
   });
 
+  void enqueueWebsiteSync("products");
   revalidatePath("/masters/costing");
   revalidatePath(`/masters/costing/${itemId}`);
   revalidatePath(`/masters/items/${itemId}`);
@@ -94,6 +96,7 @@ export async function refreshMfgCost(itemId: string, formData: FormData) {
     },
   });
 
+  void enqueueWebsiteSync("products");
   revalidatePath(`/masters/costing/${itemId}`);
   revalidatePath("/masters/costing");
   redirect(`/masters/costing/${itemId}?saved=1`);

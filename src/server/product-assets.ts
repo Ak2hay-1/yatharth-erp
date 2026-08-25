@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/session";
 import { MANAGEMENT, OPS } from "@/lib/permissions";
 import { requiredString } from "@/lib/utils";
 import { removeDocumentFile, saveDocumentFile } from "@/lib/document-storage";
+import { enqueueWebsiteSync } from "@/lib/website-sync";
 
 export async function createProductAsset(formData: FormData) {
   await requireRole(OPS);
@@ -32,6 +33,11 @@ export async function createProductAsset(formData: FormData) {
     await removeDocumentFile(saved.storageKey);
     throw err;
   }
+  const item = await prisma.item.findUnique({ where: { id: itemId }, select: { sku: true, type: true } });
+  if (item?.type === "FINISHED") {
+    void enqueueWebsiteSync("products");
+    void enqueueWebsiteSync("asset", item.sku);
+  }
   revalidatePath("/masters/media");
   revalidatePath(`/masters/items/${itemId}`);
   redirect("/masters/media");
@@ -43,6 +49,11 @@ export async function deleteProductAsset(id: string) {
   if (!row) throw new Error("Not found");
   await prisma.productAsset.delete({ where: { id } });
   await removeDocumentFile(row.storageKey);
+  const item = await prisma.item.findUnique({ where: { id: row.itemId }, select: { sku: true, type: true } });
+  if (item?.type === "FINISHED") {
+    void enqueueWebsiteSync("products");
+    void enqueueWebsiteSync("asset", item.sku);
+  }
   revalidatePath("/masters/media");
   revalidatePath(`/masters/items/${row.itemId}`);
 }

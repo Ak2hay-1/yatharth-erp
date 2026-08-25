@@ -1,0 +1,7 @@
+# TLS reverse proxy for api.yatharthafoods.in
+# Requires DNS A record (DNS only / grey cloud) pointing at this VM.
+
+api.yatharthafoods.in {
+	encode gzip
+	reverse_proxy api:3001
+}

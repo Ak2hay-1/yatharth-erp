@@ -24,10 +24,18 @@ app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, 
   }
 });
 
-const websiteOrigin = process.env.WEBSITE_ORIGIN ?? "http://localhost:3000";
+const websiteOrigin = process.env.WEBSITE_ORIGIN ?? "http://localhost:3002";
 await app.register(cors, {
-  origin: [websiteOrigin, "http://localhost:3000", "http://127.0.0.1:3000"],
-  methods: ["GET", "POST", "OPTIONS"],
+  origin: [
+    websiteOrigin,
+    "http://localhost:3002",
+    "http://127.0.0.1:3002",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://yatharthafoods.in",
+    "https://www.yatharthafoods.in",
+  ],
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
 });
 
 await app.register(rateLimit, {

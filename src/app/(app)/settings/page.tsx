@@ -5,8 +5,10 @@ import { Badge, Card, Field, Input, PageHeader, Select, Textarea, LinkButton } f
 import { SubmitButton } from "@/components/submit-button";
 import { ActionForm } from "@/components/action-form";
 import { BackupRestorePanel } from "@/components/backup-restore-panel";
+import { WebsiteSyncPanel } from "@/components/website-sync-panel";
 import { saveCompany, saveCostingDefaults } from "@/server/auth-actions";
 import { nextAutoBackupDue, readAutoBackupSettings } from "@/lib/auto-backup";
+import { readWebsiteSyncSettings } from "@/lib/website-sync";
 import { getLicenseStatus } from "@/lib/license";
 import { INDIAN_STATES, formatDateTime } from "@/lib/utils";
 
@@ -18,6 +20,7 @@ export default async function SettingsPage({
   await requireRole(SUPER_ADMIN_ONLY);
   const company = await prisma.company.findUnique({ where: { id: "default" } });
   const autoBackup = await readAutoBackupSettings();
+  const websiteSync = await readWebsiteSyncSettings();
   const due = nextAutoBackupDue(autoBackup);
   const saved = (await searchParams).saved;
   const license = getLicenseStatus();
@@ -37,6 +40,12 @@ export default async function SettingsPage({
         <p className="mb-4 text-sm text-ok">Backup written to the folder.</p>
       ) : saved === "backup" ? (
         <p className="mb-4 text-sm text-ok">Auto backup settings saved.</p>
+      ) : saved === "sync-publish" ? (
+        <p className="mb-4 text-sm text-ok">Catalog published to the website.</p>
+      ) : saved === "sync-flush" ? (
+        <p className="mb-4 text-sm text-ok">Sync queue flushed.</p>
+      ) : saved === "sync" ? (
+        <p className="mb-4 text-sm text-ok">Website sync settings saved.</p>
       ) : saved ? (
         <p className="mb-4 text-sm text-ok">Saved.</p>
       ) : null}
@@ -115,6 +124,10 @@ export default async function SettingsPage({
             <SubmitButton>Save markups</SubmitButton>
           </div>
         </ActionForm>
+      </Card>
+
+      <Card className="mt-6 p-6">
+        <WebsiteSyncPanel settings={websiteSync} />
       </Card>
 
       <BackupRestorePanel autoBackup={autoBackup} nextDue={due ? due.toISOString() : null} />

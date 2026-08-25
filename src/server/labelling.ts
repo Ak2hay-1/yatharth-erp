@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { MANAGEMENT } from "@/lib/permissions";
 import { parseNum, requiredString } from "@/lib/utils";
+import { enqueueWebsiteSync } from "@/lib/website-sync";
 
 function nutritionFields(formData: FormData) {
   return {
@@ -95,6 +96,7 @@ export async function saveItemLabel(itemId: string, formData: FormData) {
     }
   });
 
+  void enqueueWebsiteSync("products");
   revalidatePath("/masters/labelling");
   revalidatePath(`/masters/labelling/${itemId}`);
   revalidatePath(`/print/label/${itemId}`);

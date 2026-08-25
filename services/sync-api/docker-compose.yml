@@ -23,7 +23,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "3005:3001"
+      - "3001:3001"
     environment:
       DATABASE_URL: postgresql://yatharth:yatharth@postgres:5432/yatharth_sync
       PORT: "3001"

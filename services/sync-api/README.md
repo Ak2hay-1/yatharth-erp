@@ -12,6 +12,14 @@ docker compose up -d --build
 curl http://localhost:3001/health
 ```
 
+Production (TLS via Caddy):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Requires Cloudflare **A** `api` → VM IP, **DNS only** (grey cloud). See `docs/DEPLOY.md`.
+
 ## Endpoints
 
 ### Authenticated (ERP → VM)
@@ -21,7 +29,9 @@ Requires headers: `X-Yatharth-Machine-Id`, `X-Yatharth-Timestamp`, `X-Yatharth-S
 - `POST /v1/sync/products` — bulk upsert catalog
 - `POST /v1/sync/company` — company/contact block
 - `POST /v1/sync/assets/:sku` — multipart image upload
+- `DELETE /v1/sync/assets/:sku` — clear images for a SKU before re-upload
 - `GET /v1/sync/status` — last sync info
+- `GET /v1/sync/inquiries` — website contact enquiries (ERP inbox)
 
 ### Public (Website → VM)
 
@@ -29,14 +39,15 @@ Requires headers: `X-Yatharth-Machine-Id`, `X-Yatharth-Timestamp`, `X-Yatharth-S
 - `GET /v1/public/products?category=veg|non-veg`
 - `GET /v1/public/products/:sku`
 - `GET /v1/public/price-list`
-- `POST /v1/public/contact`
+- `POST /v1/public/contact` — stores enquiry; emails `CONTACT_NOTIFY_TO` when SMTP is set
 
 ## Production VM
 
-1. Point DNS `api.yatharthafoods.in` to the VM IP.
-2. Put nginx/Caddy in front of port 3001 with TLS.
-3. Set firewall: allow 443 only; block public PostgreSQL.
+1. Point DNS `api.yatharthafoods.in` to the VM IP (**DNS only**).
+2. `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`
+3. Set firewall: allow 80/443; do not publish PostgreSQL.
 4. Use a strong `SYNC_SECRET` — same value goes in ERP Settings → Website sync.
+5. Optional SMTP: `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `CONTACT_NOTIFY_TO`, `CONTACT_NOTIFY_FROM`.
 
 ## Vercel revalidation
 

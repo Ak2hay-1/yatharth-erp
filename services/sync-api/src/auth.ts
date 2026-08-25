@@ -35,11 +35,18 @@ export async function requireSyncAuth(request: FastifyRequest, reply: FastifyRep
   const timestamp = String(request.headers["x-yatharth-timestamp"] ?? "");
   const signature = String(request.headers["x-yatharth-signature"] ?? "");
   const isBodyLess = request.method === "GET" || request.method === "HEAD";
-  const body = isBodyLess
-    ? ""
-    : typeof (request as SignedRequest).rawBody === "string"
-      ? (request as SignedRequest).rawBody!
-      : JSON.stringify(request.body ?? {});
+  const contentType = String(request.headers["content-type"] ?? "").toLowerCase();
+  const isMultipart = contentType.includes("multipart/form-data");
+  const rawBody = (request as SignedRequest).rawBody;
+  // Multipart and empty DELETE/GET bodies are signed as "". JSON posts use the raw string.
+  const body =
+    isBodyLess || isMultipart
+      ? ""
+      : typeof rawBody === "string"
+        ? rawBody
+        : request.body != null
+          ? JSON.stringify(request.body)
+          : "";
 
   if (!verifySyncRequest(secret, machineId, timestamp, signature, body)) {
     return reply.code(401).send({ error: "Unauthorized" });

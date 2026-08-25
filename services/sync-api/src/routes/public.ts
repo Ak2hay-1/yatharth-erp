@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { PrismaClient } from "@prisma/client";
+import { notifyContactInquiry } from "../notify.js";
 
 const contactSchema = z.object({
   name: z.string().min(1).max(120),
@@ -73,6 +74,7 @@ export function registerPublicRoutes(app: FastifyInstance, prisma: PrismaClient)
     }
 
     await prisma.contactInquiry.create({ data: parsed.data });
+    void notifyContactInquiry(parsed.data);
     return { ok: true };
   });
 }

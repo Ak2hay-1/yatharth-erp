@@ -1,0 +1,56 @@
+# Production stack: Postgres + sync-api + Caddy (Let's Encrypt on 443).
+# Usage on the VM:
+#   cp .env.example .env   # set strong secrets
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Cloudflare: api A record → this VM IP, Proxy = DNS only (grey cloud).
+
+services:
+  postgres:
+    ports: []
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-yatharth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-yatharth_sync}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-yatharth} -d ${POSTGRES_DB:-yatharth_sync}",
+        ]
+
+  api:
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-yatharth}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-yatharth_sync}
+      PORT: "3001"
+      HOST: 0.0.0.0
+      SYNC_SECRET: ${SYNC_SECRET:?Set SYNC_SECRET in .env}
+      WEBSITE_ORIGIN: ${WEBSITE_ORIGIN:-https://yatharthafoods.in}
+      UPLOAD_DIR: /data/uploads
+      VERCEL_REVALIDATE_URL: ${VERCEL_REVALIDATE_URL:-https://yatharthafoods.in/api/revalidate}
+      REVALIDATE_WEBHOOK_SECRET: ${REVALIDATE_WEBHOOK_SECRET:?Set REVALIDATE_WEBHOOK_SECRET in .env}
+      CONTACT_NOTIFY_TO: ${CONTACT_NOTIFY_TO:-}
+      CONTACT_NOTIFY_FROM: ${CONTACT_NOTIFY_FROM:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

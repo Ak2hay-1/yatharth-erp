@@ -133,6 +133,40 @@ export function registerSyncRoutes(app: FastifyInstance, prisma: PrismaClient) {
     return { ok: true };
   });
 
+  app.delete("/v1/sync/assets/:sku", { preHandler: authHook }, async (request, reply) => {
+    const machineId = String(request.headers["x-yatharth-machine-id"] ?? "");
+    const sku = (request.params as { sku: string }).sku;
+    const product = await prisma.syncedProduct.findUnique({ where: { sku } });
+    if (!product) return reply.code(404).send({ error: "Product not found" });
+
+    const existing = await prisma.syncedAsset.findMany({ where: { sku } });
+    const uploadDir = process.env.UPLOAD_DIR ?? "./uploads";
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    for (const asset of existing) {
+      const name = path.basename(asset.publicUrl);
+      if (name) {
+        try {
+          await fs.unlink(path.join(uploadDir, name));
+        } catch {
+          // file may already be gone
+        }
+      }
+    }
+    const deleted = await prisma.syncedAsset.deleteMany({ where: { sku } });
+    await prisma.syncEvent.create({
+      data: {
+        machineId,
+        kind: "asset-clear",
+        payloadHash: sku,
+        itemCount: deleted.count,
+        ok: true,
+      },
+    });
+    void triggerRevalidate();
+    return { ok: true, deleted: deleted.count };
+  });
+
   app.post("/v1/sync/assets/:sku", { preHandler: authHook }, async (request, reply) => {
     const machineId = String(request.headers["x-yatharth-machine-id"] ?? "");
     const sku = (request.params as { sku: string }).sku;
@@ -197,5 +231,15 @@ export function registerSyncRoutes(app: FastifyInstance, prisma: PrismaClient) {
         ? { kind: last.kind, at: last.createdAt.toISOString(), ok: last.ok, error: last.error }
         : null,
     };
+  });
+
+  app.get("/v1/sync/inquiries", { preHandler: authHook }, async (request) => {
+    const limitRaw = Number((request.query as { limit?: string }).limit ?? 50);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 200) : 50;
+    const inquiries = await prisma.contactInquiry.findMany({
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+    return { inquiries };
   });
 }

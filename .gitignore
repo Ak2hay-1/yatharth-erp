@@ -50,6 +50,9 @@ yarn-error.log*
 prisma/dev.db
 prisma/backups/
 auto-backup.json
+website-sync.json
+website-sync-queue.json
+/secrets/
 /license.json
 /machine-id.txt
 

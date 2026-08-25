@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { requireLicense, requireRole, requireUser } from "@/lib/session";
 import { ASSIGNABLE_ROLES, SUPER_ADMIN_ONLY } from "@/lib/permissions";
 import { rethrowRedirect, requiredString } from "@/lib/utils";
+import { enqueueWebsiteSync } from "@/lib/website-sync";
 
 export async function loginAction(_prev: { error?: string } | undefined, formData: FormData) {
   requireLicense();
@@ -77,6 +78,7 @@ export async function saveCompany(formData: FormData) {
       ifsc: String(formData.get("ifsc") ?? ""),
     },
   });
+  void enqueueWebsiteSync("company");
   revalidatePath("/settings");
   redirect("/settings?saved=1");
 }

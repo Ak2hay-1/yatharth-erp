@@ -12,6 +12,7 @@ const DEV_PORT = 3000;
 const PACKAGED_PORT = 3847;
 const READY_TIMEOUT_MS = 90_000;
 const POLL_MS = 500;
+const WEBSITE_SYNC_FLUSH_MS = 120_000;
 
 const isDev = process.argv.includes("--dev");
 const isPackaged = app.isPackaged;
@@ -33,6 +34,7 @@ let startedServer = false;
 let isQuitting = false;
 let activePort = isPackaged ? PACKAGED_PORT : DEV_PORT;
 let serverLogPath = null;
+let websiteSyncFlushTimer = null;
 
 function appUrl(port = activePort) {
   return `http://127.0.0.1:${port}`;
@@ -125,7 +127,35 @@ function killProcessTree(pid) {
   }
 }
 
+function stopWebsiteSyncFlush() {
+  if (websiteSyncFlushTimer) {
+    clearInterval(websiteSyncFlushTimer);
+    websiteSyncFlushTimer = null;
+  }
+}
+
+function startWebsiteSyncFlush() {
+  stopWebsiteSyncFlush();
+  websiteSyncFlushTimer = setInterval(() => {
+    const req = http.request(
+      {
+        hostname: "127.0.0.1",
+        port: activePort,
+        path: "/api/sync/flush",
+        method: "POST",
+        timeout: 20_000,
+        headers: { "Content-Length": "0" },
+      },
+      (res) => res.resume(),
+    );
+    req.on("error", () => undefined);
+    req.on("timeout", () => req.destroy());
+    req.end();
+  }, WEBSITE_SYNC_FLUSH_MS);
+}
+
 function stopServer() {
+  stopWebsiteSyncFlush();
   if (!startedServer) return;
 
   if (serverUtility) {
@@ -430,6 +460,7 @@ async function bootstrap() {
   try {
     await ensureServer();
     await createWindow();
+    startWebsiteSyncFlush();
   } catch (err) {
     dialog.showErrorBox(APP_NAME, err instanceof Error ? err.message : String(err));
     stopServer();

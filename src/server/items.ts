@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { MANAGEMENT } from "@/lib/permissions";
 import { parseNum, requiredString } from "@/lib/utils";
+import { enqueueWebsiteSync } from "@/lib/website-sync";
 
 function itemData(formData: FormData) {
   return {
@@ -40,6 +41,7 @@ export async function createItem(formData: FormData) {
   await requireRole(MANAGEMENT);
   const data = itemData(formData);
   await prisma.item.create({ data });
+  if (data.type === "FINISHED") void enqueueWebsiteSync("products");
   revalidatePath("/masters/items");
   redirect("/masters/items");
 }
@@ -49,6 +51,7 @@ export async function createItemQuick(formData: FormData) {
   await requireRole(MANAGEMENT);
   const data = itemData(formData);
   const item = await prisma.item.create({ data });
+  if (data.type === "FINISHED") void enqueueWebsiteSync("products");
   revalidatePath("/masters/items");
   return {
     id: item.id,
@@ -64,7 +67,12 @@ export async function createItemQuick(formData: FormData) {
 
 export async function updateItem(id: string, formData: FormData) {
   await requireRole(MANAGEMENT);
-  await prisma.item.update({ where: { id }, data: itemData(formData) });
+  const data = itemData(formData);
+  await prisma.item.update({ where: { id }, data });
+  if (data.type === "FINISHED") {
+    void enqueueWebsiteSync("products");
+    void enqueueWebsiteSync("asset", data.sku);
+  }
   revalidatePath("/masters/items");
   redirect("/masters/items");
 }
