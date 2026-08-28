@@ -38,7 +38,7 @@ It is meant for **one office PC** (or a small team sharing the same system). The
 
 ### What this version does *not* include
 
-HR/payroll, lab QC hold/release, government e-invoice (IRN) / e-way bill APIs, distributor login, consumer website, or barcode scanners.
+HR/payroll, lab QC hold/release, government e-invoice (IRN) / e-way bill APIs, distributor login, or barcode scanners. The public marketing website is separate (Settings → Website sync).
 
 ---
 
@@ -290,14 +290,13 @@ Open it every morning before planning purchases and production.
 
 ---
 
-## 12. Settings & backup (Super Admin)
+## 12. Settings (Super Admin)
 
 1. **Settings** — company GSTIN, FSSAI, address, bank (appear on printed invoices).
 2. **Default rate markups** — B2B, wholesale, distributor, MRP % used by Product costing.
 3. **Settings → Users** — create Admin / Staff / Super Admin; deactivate, change role, or reset password.
-4. **Backup & restore** — download a copy of the SQLite database (`.db`), or enable **automatic backup** to a folder you choose (USB / cloud), with a time of day and how often (hours, days, or weeks). Restore only when you intend to replace current data.
-
-**Tip:** Keep backups on a USB drive or cloud folder. The app must be open at the scheduled time; a missed backup runs the next time you open it.
+4. **Website sync** — enable, set the VM API URL and shared secret, then **Publish to website** so the public price list stays current.
+5. **Database backups** — managed by the cloud host (Neon). No local `.db` download in the web ERP.
 
 ---
 
@@ -309,7 +308,7 @@ Open it every morning before planning purchases and production.
 4. Process **sales orders** / **counter** bills; print invoices & challans.
 5. Log any **complaints** the same day.
 6. (Admin) Record **payments** received or paid.
-7. (Super Admin, periodically) Take a **backup**.
+7. (Super Admin) After price or photo changes, **Publish to website**.
 
 ---
 

@@ -7,13 +7,12 @@ import { hash } from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { signIn, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { requireLicense, requireRole, requireUser } from "@/lib/session";
+import { requireRole, requireUser } from "@/lib/session";
 import { ASSIGNABLE_ROLES, SUPER_ADMIN_ONLY } from "@/lib/permissions";
 import { rethrowRedirect, requiredString } from "@/lib/utils";
 import { enqueueWebsiteSync } from "@/lib/website-sync";
 
 export async function loginAction(_prev: { error?: string } | undefined, formData: FormData) {
-  requireLicense();
   try {
     await signIn("credentials", {
       email: String(formData.get("email") ?? ""),
@@ -27,7 +26,7 @@ export async function loginAction(_prev: { error?: string } | undefined, formDat
       if (e.type === "CredentialsSignin") {
         return { error: "Invalid email or password" };
       }
-      return { error: "Sign-in failed. Try again, or restart the app if you just restored a backup." };
+      return { error: "Sign-in failed. Try again, or contact your administrator." };
     }
     rethrowRedirect(e);
     throw e;

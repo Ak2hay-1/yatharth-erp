@@ -79,11 +79,18 @@ export const PRODUCT_ASSET_KINDS = [
 ] as const;
 
 export const CONTENT_LOCALES = [
-  { value: "en_IN", label: "English (India)" },
+  { value: "en_IN", label: "English" },
   { value: "en_US", label: "English (US)" },
   { value: "en_GB", label: "English (UK)" },
-  { value: "hi", label: "Hindi" },
-  { value: "mr", label: "Marathi" },
+  { value: "hi", label: "हिंदी" },
+  { value: "mr", label: "मराठी" },
+] as const;
+
+/** Primary SOP / plant-doc language tabs (EN / HI / MR). */
+export const SOP_LOCALES = [
+  { value: "en_IN", label: "English" },
+  { value: "hi", label: "हिंदी" },
+  { value: "mr", label: "मराठी" },
 ] as const;
 
 export const DOCUMENT_TAGS = [

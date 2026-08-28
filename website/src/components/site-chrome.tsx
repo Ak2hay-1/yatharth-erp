@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { CartButton } from "@/components/cart-button";
 import { FOOTER_HOT_LINKS, FOOTER_POLICY_LINKS, NAV_LINKS, SERVICE_AREAS } from "@/lib/catalog";
 import { CONTACT } from "@/lib/site";
 import { MobileNav } from "@/components/mobile-nav";
@@ -36,7 +37,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-white/10 bg-[#23262C]/95 backdrop-blur">
       <div className="relative mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
         <Link href="/" className="flex shrink-0 items-center gap-3">
-          <Image src="/logo.svg" alt="Yathartha Foods & Beverages" width={180} height={36} className="h-9 w-auto" priority />
+          <Image src="/logo.png" alt="Yathartha Foods & Beverages" width={180} height={67} className="h-9 w-auto" priority />
         </Link>
 
         <nav className="hidden items-center gap-0.5 lg:flex">
@@ -53,6 +54,7 @@ export function SiteHeader() {
               </Link>
             ),
           )}
+          <CartButton className="ml-1" />
           <Link
             href="/contact"
             className="ml-2 rounded-lg bg-[#FE7733] px-4 py-2 text-sm font-semibold text-[#23262C] transition hover:brightness-110"
@@ -61,7 +63,10 @@ export function SiteHeader() {
           </Link>
         </nav>
 
-        <MobileNav />
+        <div className="flex items-center gap-1 lg:hidden">
+          <CartButton />
+          <MobileNav />
+        </div>
       </div>
     </header>
   );

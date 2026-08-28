@@ -7,10 +7,11 @@ import { ActionForm } from "@/components/action-form";
 import { deletePlantDocument, saveSopTranslation, updatePlantDocument } from "@/server/documents";
 import { formatDate } from "@/lib/utils";
 import { formatFileSize } from "@/lib/document-storage";
-import { CONTENT_LOCALES, DOCUMENT_TAGS, labelOf } from "@/lib/labels";
+import { CONTENT_LOCALES, DOCUMENT_TAGS, SOP_LOCALES, labelOf } from "@/lib/labels";
 import { requireRole } from "@/lib/session";
 import { MANAGEMENT, OPS, can } from "@/lib/permissions";
 import { MermaidEditorField, MermaidPreview } from "@/components/mermaid-editor";
+import { PrintButton } from "@/components/print-button";
 
 const BASE: Record<DocumentCategory, string> = {
   SOP: "/quality/sops",
@@ -63,7 +64,8 @@ export async function PlantDocumentDetail({
         title={title}
         subtitle={`${row.number} · v${row.version} · updated ${formatDate(row.updatedAt)}`}
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 no-print">
+            {category === "SOP" ? <PrintButton label="Print this language" /> : null}
             {row.storageKey ? (
               <LinkButton href={`/api/documents/${row.id}/download`} variant="secondary">
                 Download file
@@ -77,21 +79,26 @@ export async function PlantDocumentDetail({
       />
 
       {category === "SOP" ? (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {CONTENT_LOCALES.map((loc) => (
-            <LinkButton
-              key={loc.value}
-              href={`${base}/${row.id}?locale=${loc.value}`}
-              variant={locale === loc.value ? "primary" : "secondary"}
-            >
-              {loc.label}
-            </LinkButton>
-          ))}
+        <div className="mb-4 no-print">
+          <div className="mb-2 flex flex-wrap gap-2">
+            {SOP_LOCALES.map((loc) => (
+              <LinkButton
+                key={loc.value}
+                href={`${base}/${row.id}?locale=${loc.value}`}
+                variant={locale === loc.value ? "primary" : "secondary"}
+              >
+                {loc.label}
+              </LinkButton>
+            ))}
+          </div>
+          <p className="text-xs text-muted">
+            Editors fill हिंदी / मराठी manually — there is no auto-translation. Print uses the language tab you have open.
+          </p>
         </div>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="space-y-4 p-6">
+        <Card className="space-y-4 p-6 no-print">
           <div className="flex flex-wrap gap-2 text-sm text-muted">
             {row.fileName ? (
               <span>
@@ -172,13 +179,25 @@ export async function PlantDocumentDetail({
         </Card>
 
         {category === "SOP" ? (
-          <Card className="space-y-4 p-6">
-            <h2 className="font-display text-lg">Preview</h2>
+          <Card className="sop-print-sheet space-y-4 p-6">
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-display text-lg no-print">Preview</h2>
+              <p className="hidden text-xs text-muted print:block">
+                {row.number} · v{row.version} · {labelOf(CONTENT_LOCALES, locale)}
+              </p>
+            </div>
+            <h1 className="hidden font-display text-2xl print:block">{title}</h1>
             <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm">{bodyMd || "No procedure text."}</div>
             {flowchart ? (
-              <div>
+              <div className="no-print">
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Flowchart</h3>
                 <MermaidPreview chart={flowchart} />
+              </div>
+            ) : null}
+            {notes ? (
+              <div className="border-t border-line pt-3 text-sm text-muted">
+                <span className="font-semibold text-ink">Notes: </span>
+                {notes}
               </div>
             ) : null}
           </Card>

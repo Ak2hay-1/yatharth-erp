@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { ContactDetails, ContactForm } from "@/components/contact-form";
 import { SITE_NAME } from "@/lib/site";
 
@@ -13,7 +14,9 @@ export default function ContactPage() {
       <div className="mx-auto max-w-6xl px-4 py-14">
         <div className="grid gap-10 md:grid-cols-2">
           <ContactDetails />
-          <ContactForm />
+          <Suspense fallback={<div className="rounded-2xl border border-neutral-200 bg-white p-6 text-sm text-neutral-500">Loading form…</div>}>
+            <ContactForm />
+          </Suspense>
         </div>
       </div>
     </div>

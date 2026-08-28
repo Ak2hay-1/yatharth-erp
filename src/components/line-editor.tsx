@@ -7,6 +7,7 @@ import { Button, Input } from "@/components/ui";
 import { CreatableItemSelect } from "@/components/creatable-selects";
 import type { CatalogItem } from "@/components/catalog-types";
 import type { StockHint } from "@/server/stock";
+import { entryUnitsFor, fromBaseUnit, pickDisplayUnit } from "@/lib/units";
 import { formatDate, qty } from "@/lib/utils";
 
 export type { CatalogItem };
@@ -14,10 +15,15 @@ export type LineRow = {
   itemId: string;
   qty: string;
   rate: string;
+  unit?: string;
   lotNo?: string;
   mfgDate?: string;
   expiryDate?: string;
 };
+
+function emptyRow(): LineRow {
+  return { itemId: "", qty: "1", rate: "", lotNo: "", mfgDate: "", expiryDate: "" };
+}
 
 export function LineEditor({
   items,
@@ -29,6 +35,7 @@ export function LineEditor({
   name = "lines",
   canCreate = false,
   defaultType = "FINISHED",
+  unitMode = "item",
 }: {
   items: CatalogItem[];
   initial?: LineRow[];
@@ -39,15 +46,13 @@ export function LineEditor({
   name?: string;
   canCreate?: boolean;
   defaultType?: ItemType;
+  unitMode?: "item" | "recipe";
 }) {
-  const [rows, setRows] = useState<LineRow[]>(
-    initial?.length
-      ? initial
-      : [{ itemId: "", qty: "1", rate: "", lotNo: "", mfgDate: "", expiryDate: "" }],
-  );
+  const [rows, setRows] = useState<LineRow[]>(initial?.length ? initial : [emptyRow()]);
   const [catalog, setCatalog] = useState(items);
 
   const byId = useMemo(() => Object.fromEntries(catalog.map((i) => [i.id, i])), [catalog]);
+  const recipeMode = unitMode === "recipe";
 
   function update(i: number, patch: Partial<LineRow>) {
     setRows((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
@@ -55,17 +60,24 @@ export function LineEditor({
 
   function onItem(i: number, itemId: string) {
     const item = byId[itemId] ?? catalog.find((c) => c.id === itemId);
-    update(i, {
+    const patch: Partial<LineRow> = {
       itemId,
       rate: item ? String(item[rateField] || "") : "",
-    });
+    };
+    if (recipeMode && item) {
+      const allowed = entryUnitsFor(item.unit);
+      if (allowed.length) {
+        const displayUnit = pickDisplayUnit(Number(rows[i]?.qty) || 0, item.unit);
+        patch.unit = displayUnit;
+      } else {
+        patch.unit = undefined;
+      }
+    }
+    update(i, patch);
   }
 
   function addLine() {
-    setRows((prev) => [
-      ...prev,
-      { itemId: "", qty: "1", rate: "", lotNo: "", mfgDate: "", expiryDate: "" },
-    ]);
+    setRows((prev) => [...prev, emptyRow()]);
   }
 
   return (
@@ -76,8 +88,8 @@ export function LineEditor({
           <thead className="bg-bg text-xs uppercase tracking-wide text-muted">
             <tr>
               <th className="px-3 py-2 text-left">Item</th>
-              <th className="w-28 px-3 py-2 text-left">Qty</th>
-              <th className="w-32 px-3 py-2 text-left">Rate</th>
+              <th className={`px-3 py-2 text-left ${recipeMode ? "w-40" : "w-28"}`}>Qty</th>
+              {!recipeMode ? <th className="w-32 px-3 py-2 text-left">Rate</th> : null}
               {showLot ? (
                 <>
                   <th className="w-36 px-3 py-2 text-left">Lot</th>
@@ -95,6 +107,8 @@ export function LineEditor({
               const needed = Number(row.qty) || 0;
               const short = showStock && hint && needed > hint.onHand + 0.0005;
               const none = showStock && row.itemId && !hint;
+              const allowedUnits = item ? entryUnitsFor(item.unit) : [];
+              const showUnitSelect = recipeMode && allowedUnits.length > 0;
               return (
                 <tr key={i} className="border-t border-line">
                   <td className="px-2 py-2">
@@ -124,29 +138,48 @@ export function LineEditor({
                     {none ? <div className="mt-1 text-xs font-semibold text-bad">No stock</div> : null}
                   </td>
                   <td className="px-2 py-2">
-                    <Input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      value={row.qty}
-                      onChange={(e) => update(i, { qty: e.target.value })}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          addLine();
-                        }
-                      }}
-                    />
+                    <div className="flex gap-1">
+                      <Input
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        className={showUnitSelect ? "min-w-0 flex-1" : undefined}
+                        value={row.qty}
+                        onChange={(e) => update(i, { qty: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addLine();
+                          }
+                        }}
+                      />
+                      {showUnitSelect ? (
+                        <select
+                          className="w-16 shrink-0 rounded-lg border border-line bg-white px-1 py-2 text-sm"
+                          value={row.unit ?? allowedUnits[0]}
+                          onChange={(e) => update(i, { unit: e.target.value })}
+                          aria-label="Unit"
+                        >
+                          {allowedUnits.map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
+                      ) : null}
+                    </div>
                   </td>
-                  <td className="px-2 py-2">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={row.rate}
-                      onChange={(e) => update(i, { rate: e.target.value })}
-                    />
-                  </td>
+                  {!recipeMode ? (
+                    <td className="px-2 py-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={row.rate}
+                        onChange={(e) => update(i, { rate: e.target.value })}
+                      />
+                    </td>
+                  ) : null}
                   {showLot ? (
                     <>
                       <td className="px-2 py-2">
@@ -193,4 +226,16 @@ export function LineEditor({
       </Button>
     </div>
   );
+}
+
+export function recipeLineRow(itemId: string, baseQty: number, itemUnit: string): LineRow {
+  const displayUnit = pickDisplayUnit(baseQty, itemUnit);
+  const displayQty = fromBaseUnit(baseQty, itemUnit, displayUnit);
+  const allowed = entryUnitsFor(itemUnit);
+  return {
+    itemId,
+    qty: String(displayQty),
+    rate: "0",
+    unit: allowed.length ? displayUnit : undefined,
+  };
 }

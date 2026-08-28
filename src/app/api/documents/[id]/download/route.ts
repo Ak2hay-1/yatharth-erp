@@ -1,8 +1,7 @@
-import { readFile } from "fs/promises";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { OPS } from "@/lib/permissions";
-import { resolveDocumentPath } from "@/lib/document-storage";
+import { readDocumentBytes } from "@/lib/document-storage";
 
 export const runtime = "nodejs";
 
@@ -18,8 +17,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 
   try {
-    const bytes = await readFile(resolveDocumentPath(row.storageKey));
-    return new Response(bytes, {
+    const bytes = await readDocumentBytes(row.storageKey);
+    return new Response(new Uint8Array(bytes), {
       headers: {
         "Content-Type": row.mimeType || "application/octet-stream",
         "Content-Length": String(bytes.length),
@@ -28,6 +27,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       },
     });
   } catch {
-    return new Response("File missing on disk", { status: 404 });
+    return new Response("File missing", { status: 404 });
   }
 }

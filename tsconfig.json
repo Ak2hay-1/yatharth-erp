@@ -36,6 +36,8 @@
     "services",
     "electron",
     "dist-installer",
-    "packaging"
+    "packaging",
+    "yatharth-erp",
+    "scripts"
   ]
 }

@@ -77,4 +77,12 @@ textarea {
   html {
     background: white;
   }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .sop-print-sheet {
+    border: none !important;
+    box-shadow: none !important;
+  }
 }

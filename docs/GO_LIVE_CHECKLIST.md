@@ -4,8 +4,6 @@ Use this once per launch. Details: [DEPLOY.md](DEPLOY.md), [USER_MANUAL.md](USER
 
 ## A. Secrets (once)
 
-On an office PC:
-
 ```powershell
 powershell -File scripts/Generate-ProdSecrets.ps1 -Show
 ```
@@ -13,7 +11,8 @@ powershell -File scripts/Generate-ProdSecrets.ps1 -Show
 Copy values into:
 
 - VM `services/sync-api/.env` — `SYNC_SECRET`, `REVALIDATE_WEBHOOK_SECRET`, `POSTGRES_PASSWORD`
-- Vercel website project — `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_API_URL`, `REVALIDATE_WEBHOOK_SECRET`
+- Vercel **website** project — `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_API_URL`, `REVALIDATE_WEBHOOK_SECRET`
+- Vercel **ERP** project — `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `BLOB_READ_WRITE_TOKEN`, `CRON_SECRET`, `YATHARTH_DEPLOYMENT_ID`, `SETUP_SECRET` (temporary)
 - ERP Settings → Website sync — API URL + the same `SYNC_SECRET`
 - Optional SMTP on the VM for contact-form email (`SMTP_*`, `CONTACT_NOTIFY_TO`)
 
@@ -34,7 +33,17 @@ Expect Vultr IP (not `104.21.x`) and `{"ok":true}` from `https://api.yatharthafo
 2. Domain `yatharthafoods.in` attached.
 3. `powershell -File scripts/Verify-Website.ps1`
 
-## D. Publish catalog from ERP
+## D. ERP (Vercel)
+
+1. New Vercel project, root `.`, domain `erp.yatharthafoods.in`.
+2. Neon Postgres + Vercel Blob connected; all env vars set (see [DEPLOY.md](DEPLOY.md)).
+3. Deploy; run one-time seed via `/api/setup/seed`; remove `SETUP_SECRET`.
+4. `powershell -File scripts/Verify-ErpHealth.ps1`
+5. Sign in as Super Admin; **change** owner password.
+6. Create Admin / Staff users.
+7. Company details, items, parties, recipes.
+
+## E. Publish catalog from ERP
 
 1. Super Admin → Settings → fill real GSTIN / FSSAI / bank (not seed placeholders).
 2. Masters: finished SKUs, USP / B2B rates, pack photos.
@@ -43,22 +52,14 @@ Expect Vultr IP (not `104.21.x`) and `{"ok":true}` from `https://api.yatharthafo
 5. Confirm `https://yatharthafoods.in/price-list` and `/products` show SKUs.
 6. **Load enquiries** after a test contact form submit.
 
-While ERP is open, flush runs about every 2 minutes (Next scheduler + Electron).
-
-## E. Plant ERP first install (office PC)
-
-1. `npm run dist:win` → install `dist-installer/Yatharth Foods ERP-Setup-*.exe`.
-2. Activate the product key on that PC.
-3. Sign in as Super Admin; **change** seeded passwords (`Yatharth@123`).
-4. Create Admin / Staff users.
-5. Company details, items, parties, recipes.
-6. Settings → automatic backup to USB or cloud folder; run one backup.
-7. Staff walkthrough via in-app **Help** / this user manual.
-
-Unsigned builds show Windows SmartScreen until a code-signing certificate is added.
+Website sync queue flushes via Vercel Cron (~every 2 min on Pro) or manual **Publish / Flush**.
 
 ## F. After go-live (ops)
 
-- Check Settings → Website sync → Load enquiries (or SMTP inbox) daily.
-- Re-publish after major catalog changes if the queue was disabled.
-- Keep automatic backup enabled.
+- Check Settings → Website enquiries daily (or SMTP inbox).
+- Re-publish after major catalog changes if sync was disabled.
+- Database backups: managed by Neon (see Settings → Database backups note in ERP).
+
+## G. Desktop installer (paused)
+
+The Windows `.exe` path is on hold. Do not distribute `dist-installer/` for new installs — use `https://erp.yatharthafoods.in` instead.

@@ -1,7 +1,7 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "edge") return;
-  const { startAutoBackupScheduler } = await import("@/lib/auto-backup-scheduler");
+  if (process.env.VERCEL) return;
+
   const { startWebsiteSyncScheduler } = await import("@/lib/website-sync-scheduler");
-  startAutoBackupScheduler();
   startWebsiteSyncScheduler();
 }

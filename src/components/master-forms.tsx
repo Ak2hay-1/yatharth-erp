@@ -2,7 +2,7 @@ import type { Recipe, RecipeLine } from "@prisma/client";
 import { Card, Field, Input } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { ActionForm } from "@/components/action-form";
-import { LineEditor, type CatalogItem, type LineRow } from "@/components/line-editor";
+import { LineEditor, recipeLineRow, type CatalogItem, type LineRow } from "@/components/line-editor";
 import { NamedSearch } from "@/components/named-search";
 
 export { ItemForm, PartyForm, type ItemFormSeed, type PartyFormSeed } from "@/components/item-party-forms";
@@ -18,11 +18,14 @@ export function RecipeForm({
 }) {
   const finished = items.filter((i) => i.type === "FINISHED");
   const ingredients = items.filter((i) => i.type !== "FINISHED");
-  const initial: LineRow[] | undefined = recipe?.lines.map((l) => ({
-    itemId: l.itemId,
-    qty: String(l.qty),
-    rate: "0",
-  }));
+  const byId = Object.fromEntries(ingredients.map((i) => [i.id, i]));
+  const initial: LineRow[] | undefined = recipe?.lines.map((l) => {
+    const item = byId[l.itemId];
+    if (!item) {
+      return { itemId: l.itemId, qty: String(l.qty), rate: "0" };
+    }
+    return recipeLineRow(l.itemId, l.qty, item.unit);
+  });
   return (
     <ActionForm action={action} className="space-y-5">
       <div className="grid gap-4 md:grid-cols-2">
@@ -51,7 +54,14 @@ export function RecipeForm({
       </div>
       <Card className="p-4">
         <h3 className="mb-3 font-semibold">Ingredients per standard batch</h3>
-        <LineEditor items={ingredients} initial={initial} rateField="purchasePrice" canCreate defaultType="RAW" />
+        <LineEditor
+          items={ingredients}
+          initial={initial}
+          rateField="purchasePrice"
+          canCreate
+          defaultType="RAW"
+          unitMode="recipe"
+        />
       </Card>
       <SubmitButton>{recipe ? "Save recipe" : "Create recipe"}</SubmitButton>
     </ActionForm>

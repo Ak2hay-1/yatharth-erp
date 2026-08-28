@@ -40,7 +40,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       {
         type: "callout",
         title: "Not in this version",
-        text: "HR/payroll, lab QC hold/release, e-invoice IRN / e-way bill APIs, distributor login, consumer website, or barcode scanners.",
+        text: "HR/payroll, lab QC hold/release, e-invoice IRN / e-way bill APIs, distributor login, or barcode scanners. The public marketing website is separate (Settings → Website sync).",
       },
     ],
   },
@@ -74,7 +74,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           ],
           [
             "Super Admin",
-            "Full access including Settings (company, backup) and Users (create logins).",
+            "Full access including Settings (company, website sync) and Users (create logins).",
           ],
         ],
       },
@@ -309,7 +309,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
   },
   {
     id: "settings",
-    title: "13. Settings & backup",
+    title: "13. Settings",
     blocks: [
       {
         type: "ul",
@@ -317,12 +317,9 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           "Company details print on invoices — keep GSTIN and FSSAI correct.",
           "Default rate markups (B2B, wholesale, distributor, MRP %) for Product costing.",
           "Users — only Super Admin creates logins; can deactivate, change role, reset password.",
-          "Backup & restore — download the database, or turn on automatic backup to a folder (USB / cloud) with a time and interval. Restore only when you intend to replace current data.",
+          "Database backups are managed by the cloud host (Neon) — not via a local file download.",
+          "Website sync — Super Admin only. Enable, paste the VM API URL and shared secret, then click Publish to website so the public price list and product photos stay current.",
         ],
-      },
-      {
-        type: "tip",
-        text: "Keep automatic backups on a USB drive or cloud folder. The app must be open at the scheduled time; a missed backup runs the next time you open it.",
       },
     ],
   },
@@ -339,7 +336,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           "Process sales orders / counter bills; print invoices and challans.",
           "Log complaints the same day.",
           "Admin: record payments.",
-          "Super Admin: set automatic backup in Settings, or take a backup after a busy day.",
+          "Super Admin: after price or photo changes, Publish to website.",
         ],
       },
     ],

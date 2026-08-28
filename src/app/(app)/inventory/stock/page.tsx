@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, Table, Td, Th, Empty, Badge, LinkButton } from "@/components/ui";
 import { ListFilters } from "@/components/list-filters";
+import { UnitConverter } from "@/components/unit-converter";
 import { parseListQuery } from "@/lib/filters";
 import { qty } from "@/lib/utils";
 
@@ -28,6 +29,7 @@ export default async function StockPage({
         subtitle="Live qty from batches. Never overwrite — use adjust or documents."
         actions={<LinkButton href="/inventory/adjust" variant="secondary">Adjust / wastage</LinkButton>}
       />
+      <UnitConverter className="mb-4 p-4 no-print" />
       <Card className="p-2">
         <ListFilters q={q} placeholder="SKU or item name" />
         {items.length === 0 ? (

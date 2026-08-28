@@ -10,6 +10,8 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { MANAGEMENT } from "@/lib/permissions";
 import { CONTENT_LOCALES, labelOf } from "@/lib/labels";
+import { UnitConverter } from "@/components/unit-converter";
+import { PrintButton } from "@/components/print-button";
 
 const LOCALES = CONTENT_LOCALES.map((x) => x.value);
 
@@ -50,8 +52,16 @@ export default async function EditRecipePage({
 
   return (
     <div>
-      <PageHeader title={displayName} subtitle={`Language: ${labelOf(CONTENT_LOCALES, locale)}`} />
-      <div className="mb-4 flex flex-wrap gap-2">
+      <PageHeader
+        title={displayName}
+        subtitle={`Language: ${labelOf(CONTENT_LOCALES, locale)}`}
+        actions={
+          <div className="flex flex-wrap gap-2 no-print">
+            <PrintButton label="Print recipe" />
+          </div>
+        }
+      />
+      <div className="mb-4 flex flex-wrap gap-2 no-print">
         {CONTENT_LOCALES.map((loc) => (
           <LinkButton
             key={loc.value}
@@ -63,13 +73,15 @@ export default async function EditRecipePage({
         ))}
       </div>
 
+      <UnitConverter className="mb-4 p-4 no-print" />
+
       <div className="grid gap-4 xl:grid-cols-2">
         {locale === "en_IN" ? (
-          <Card className="p-6">
+          <Card className="p-6 no-print">
             <RecipeForm action={updateRecipe.bind(null, recipe.id)} items={items} recipe={recipe} />
           </Card>
         ) : (
-          <Card className="p-6">
+          <Card className="p-6 no-print">
             <p className="mb-4 text-sm text-muted">
               Quantities stay on the English (India) recipe. Edit translated name, notes, and ingredient display names
               here.

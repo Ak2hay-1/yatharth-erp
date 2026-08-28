@@ -1,9 +1,8 @@
-import { readFile } from "fs/promises";
 import JSZip from "jszip";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { OPS } from "@/lib/permissions";
-import { resolveDocumentPath } from "@/lib/document-storage";
+import { readDocumentBytes } from "@/lib/document-storage";
 import { formatDate } from "@/lib/utils";
 import { COMPLAINT_ISSUES, COMPLAINT_STATUSES, labelOf } from "@/lib/labels";
 
@@ -55,10 +54,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   zip.file("rca-summary.txt", summary);
   for (const att of row.attachments) {
     try {
-      const bytes = await readFile(resolveDocumentPath(att.storageKey));
+      const bytes = await readDocumentBytes(att.storageKey);
       zip.file(att.fileName, bytes);
     } catch {
-      zip.file(`MISSING-${att.fileName}.txt`, `File missing on disk: ${att.storageKey}`);
+      zip.file(`MISSING-${att.fileName}.txt`, `File missing: ${att.storageKey}`);
     }
   }
 

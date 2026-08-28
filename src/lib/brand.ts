@@ -8,4 +8,4 @@ export const brand = {
 
 export const BRAND_NAME = "YATHARTHA";
 export const BRAND_TAGLINE = "Foods & Beverages";
-export const LOGO_SRC = "/media/logo.png?v=3";
+export const LOGO_SRC = "/media/logo.png?v=4";

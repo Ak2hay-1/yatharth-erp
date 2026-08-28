@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { PrintButton } from "@/components/print-button";
+import { LabelPrintEscape } from "@/components/label-print-escape";
 
 export default async function PrintLabelPage({ params }: { params: Promise<{ itemId: string }> }) {
   await requireUser();
@@ -31,7 +32,8 @@ export default async function PrintLabelPage({ params }: { params: Promise<{ ite
 
   return (
     <div className="print-sheet mx-auto max-w-2xl p-8 text-sm text-ink">
-      <div className="no-print mb-4 flex justify-end">
+      <div className="no-print mb-4 flex flex-wrap justify-end gap-2">
+        <LabelPrintEscape itemId={itemId} />
         <PrintButton label="Print / Save as PDF" />
       </div>
       <div className="border-2 border-ink p-5">

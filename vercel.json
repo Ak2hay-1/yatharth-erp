@@ -1,12 +1,21 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "services": {
-    "website": {
-      "root": "website",
-      "framework": "nextjs"
+  "framework": "nextjs",
+  "regions": ["bom1"],
+  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+  "crons": [
+    {
+      "path": "/api/sync/flush",
+      "schedule": "*/2 * * * *"
     }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": { "service": "website" } }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
   ]
 }

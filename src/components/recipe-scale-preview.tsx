@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Card, Field, Input, Table, Td, Th } from "@/components/ui";
 import { recipeScaleFactor } from "@/lib/recipe-scale";
+import { formatQtySmartString } from "@/lib/units";
 import { qty } from "@/lib/utils";
 
 export type ScaleLine = {
@@ -81,8 +82,8 @@ export function RecipeScalePreview({
                 scaled.map((l, i) => (
                   <tr key={`${l.name}-${i}`}>
                     <Td>{l.name}</Td>
-                    <Td>{qty(l.qty, l.unit)}</Td>
-                    <Td className="font-semibold">{qty(l.scaledQty, l.unit)}</Td>
+                    <Td>{formatQtySmartString(l.qty, l.unit)}</Td>
+                    <Td className="font-semibold">{formatQtySmartString(l.scaledQty, l.unit)}</Td>
                   </tr>
                 ))
               )}

@@ -1,10 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
 import { submitContact } from "@/lib/api";
 import { CONTACT } from "@/lib/site";
 
 export function ContactForm() {
+  const searchParams = useSearchParams();
+  const product = (searchParams.get("product") ?? "").trim();
+  const defaultMessage = useMemo(
+    () =>
+      product
+        ? `I am interested in ordering: ${product}\n\nQuantity / pack preference:\nDelivery area:\nNotes:`
+        : "",
+    [product],
+  );
+
   const [status, setStatus] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -26,6 +37,11 @@ export function ContactForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+      {product ? (
+        <p className="rounded-lg bg-[#FE7733]/10 px-3 py-2 text-sm text-[#23262C]">
+          Enquiry about <span className="font-semibold">{product}</span>
+        </p>
+      ) : null}
       <label className="block text-sm">
         <span className="text-neutral-500">Name</span>
         <input
@@ -56,6 +72,8 @@ export function ContactForm() {
           name="message"
           required
           rows={5}
+          defaultValue={defaultMessage}
+          key={defaultMessage}
           className="mt-1 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-neutral-900"
         />
       </label>

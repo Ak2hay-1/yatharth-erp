@@ -1,6 +1,7 @@
-import { mkdir, unlink, writeFile } from "fs/promises";
+import { mkdir, unlink, writeFile, readFile } from "fs/promises";
 import path from "path";
 import { randomBytes } from "crypto";
+import { del, put } from "@vercel/blob";
 import { getDataDir } from "@/lib/data-dir";
 
 export const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024;
@@ -21,6 +22,10 @@ const ALLOWED_EXT = new Set([
   ".txt",
   ".csv",
 ]);
+
+function useBlobStorage() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
+}
 
 export function getDocumentsRoot() {
   return path.resolve(getDataDir(), "uploads", "documents");
@@ -67,9 +72,23 @@ export async function saveDocumentFile(file: File): Promise<{
   const fileName = sanitizeFileName(file.name);
   const ext = extensionOf(fileName) || ".bin";
   const storageKey = `${Date.now()}-${randomBytes(8).toString("hex")}${ext}`;
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  if (useBlobStorage()) {
+    const blob = await put(`documents/${storageKey}`, bytes, {
+      access: "public",
+      contentType: file.type || "application/octet-stream",
+    });
+    return {
+      storageKey: blob.url,
+      fileName,
+      mimeType: file.type || "application/octet-stream",
+      sizeBytes: bytes.length,
+    };
+  }
+
   const dir = getDocumentsRoot();
   await mkdir(dir, { recursive: true });
-  const bytes = Buffer.from(await file.arrayBuffer());
   await writeFile(resolveDocumentPath(storageKey), bytes);
   return {
     storageKey,
@@ -80,12 +99,31 @@ export async function saveDocumentFile(file: File): Promise<{
 }
 
 export async function removeDocumentFile(storageKey: string) {
+  if (!storageKey) return;
+
+  if (useBlobStorage() && storageKey.startsWith("http")) {
+    await del(storageKey);
+    return;
+  }
+
   try {
     await unlink(resolveDocumentPath(storageKey));
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") throw err;
   }
+}
+
+export async function readDocumentBytes(storageKey: string): Promise<Buffer> {
+  if (!storageKey) throw new Error("Missing storage key.");
+
+  if (useBlobStorage() && storageKey.startsWith("http")) {
+    const res = await fetch(storageKey);
+    if (!res.ok) throw new Error("File missing in blob storage.");
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  return readFile(resolveDocumentPath(storageKey));
 }
 
 export function formatFileSize(bytes: number) {

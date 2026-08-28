@@ -23,7 +23,7 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ i
       </div>
       <div className="border border-black">
         <div className="border-b border-black px-4 py-3 text-center">
-          <img src="/media/logo.png?v=3" alt="YATHARTHA Foods & Beverages" className="mx-auto mb-2 h-10 w-auto bg-transparent object-contain" />
+          <img src="/media/logo.png?v=4" alt="YATHARTHA Foods & Beverages" className="mx-auto mb-2 h-10 w-auto bg-transparent object-contain" />
           <div className="text-xs uppercase tracking-widest">Tax Invoice</div>
           <div className="font-display text-2xl">{company.legalName}</div>
           <div className="text-xs">

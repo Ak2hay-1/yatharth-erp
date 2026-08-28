@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: yatharth
-      POSTGRES_PASSWORD: yatharth
-      POSTGRES_DB: yatharth_sync
+      POSTGRES_USER: ${POSTGRES_USER:-yatharth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yatharth}
+      POSTGRES_DB: ${POSTGRES_DB:-yatharth_sync}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U yatharth -d yatharth_sync"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yatharth} -d ${POSTGRES_DB:-yatharth_sync}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,9 +23,9 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
-      DATABASE_URL: postgresql://yatharth:yatharth@postgres:5432/yatharth_sync
+      DATABASE_URL: postgresql://${POSTGRES_USER:-yatharth}:${POSTGRES_PASSWORD:-yatharth}@postgres:5432/${POSTGRES_DB:-yatharth_sync}
       PORT: "3001"
       HOST: 0.0.0.0
       SYNC_SECRET: ${SYNC_SECRET:-change-me-in-production}
@@ -33,6 +33,9 @@ services:
       UPLOAD_DIR: /data/uploads
       VERCEL_REVALIDATE_URL: ${VERCEL_REVALIDATE_URL:-}
       REVALIDATE_WEBHOOK_SECRET: ${REVALIDATE_WEBHOOK_SECRET:-}
+      POSTGRES_USER: ${POSTGRES_USER:-yatharth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yatharth}
+      POSTGRES_DB: ${POSTGRES_DB:-yatharth_sync}
     volumes:
       - uploads:/data/uploads
 

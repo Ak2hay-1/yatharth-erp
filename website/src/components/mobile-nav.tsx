@@ -60,6 +60,13 @@ export function MobileNav() {
               ),
             )}
             <Link
+              href="/order"
+              onClick={() => setOpen(false)}
+              className="mt-2 block rounded-lg border border-white/20 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-white/5"
+            >
+              My order
+            </Link>
+            <Link
               href="/contact"
               onClick={() => setOpen(false)}
               className="mt-2 block rounded-lg bg-[#FE7733] px-4 py-3 text-center text-sm font-semibold text-[#23262C]"

@@ -65,3 +65,4 @@ website-sync-queue.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.neon

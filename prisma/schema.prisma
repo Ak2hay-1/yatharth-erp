@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 enum Role {
@@ -752,4 +753,20 @@ model RecipeTranslation {
   ingredientNamesJson  String        @default("{}")
 
   @@unique([recipeId, locale])
+}
+
+model AppSetting {
+  key   String @id
+  value Json
+}
+
+model WebsiteSyncQueueItem {
+  id        String   @id @default(cuid())
+  kind      String
+  ref       String   @default("")
+  attempts  Int      @default(0)
+  lastError String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([kind, ref])
 }

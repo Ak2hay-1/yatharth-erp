@@ -25,6 +25,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { EscapeBackButton } from "@/components/escape-back";
 import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { logoutAction } from "@/server/auth-actions";
@@ -149,15 +150,18 @@ export function AppShell({
               </p>
             ) : null}
           </div>
-          <form action="/search" className="relative mt-4">
-            <Search size={14} className="pointer-events-none absolute left-3 top-2.5 text-white/40" />
-            <input
-              name="q"
-              placeholder="Invoice, party, SKU"
-              aria-label="Search"
-              className="w-full rounded-lg border border-white/15 bg-white/10 py-2 pl-9 pr-3 text-xs text-white placeholder:text-white/40 outline-none focus:border-saffron focus:ring-2 focus:ring-saffron/30"
-            />
-          </form>
+          <div className="mt-4 flex items-center gap-2">
+            <form action="/search" className="relative min-w-0 flex-1">
+              <Search size={14} className="pointer-events-none absolute left-3 top-2.5 text-white/40" />
+              <input
+                name="q"
+                placeholder="Invoice, party, SKU"
+                aria-label="Search"
+                className="w-full rounded-lg border border-white/15 bg-white/10 py-2 pl-9 pr-3 text-xs text-white placeholder:text-white/40 outline-none focus:border-saffron focus:ring-2 focus:ring-saffron/30"
+              />
+            </form>
+            <EscapeBackButton />
+          </div>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           {groups.map((group) => {

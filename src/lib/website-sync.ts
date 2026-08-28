@@ -1,10 +1,8 @@
 import { createHmac, randomBytes } from "crypto";
-import { mkdir, readFile, writeFile } from "fs/promises";
-import path from "path";
-import { getDataDir } from "@/lib/data-dir";
-import { getMachineId } from "@/lib/license";
 import { prisma } from "@/lib/prisma";
-import { resolveDocumentPath } from "@/lib/document-storage";
+import { readAppSetting, writeAppSetting } from "@/lib/app-settings";
+import { readDocumentBytes } from "@/lib/document-storage";
+import { getMachineId } from "@/lib/machine-id";
 import {
   DEFAULT_WEBSITE_SYNC,
   normalizeApiUrl,
@@ -21,92 +19,64 @@ export {
   type WebsiteSyncSettings,
 } from "@/lib/website-sync-config";
 
-const SETTINGS_FILE = "website-sync.json";
-const QUEUE_FILE = "website-sync-queue.json";
+const SETTINGS_KEY = "website-sync";
 
-function settingsPath() {
-  return path.join(getDataDir(), SETTINGS_FILE);
-}
-
-function queuePath() {
-  return path.join(getDataDir(), QUEUE_FILE);
+function mapQueueRow(row: {
+  id: string;
+  kind: string;
+  ref: string;
+  attempts: number;
+  lastError: string;
+  createdAt: Date;
+}): WebsiteSyncQueueItem {
+  return {
+    id: row.id,
+    kind: row.kind as WebsiteSyncQueueKind,
+    ref: row.ref,
+    createdAt: row.createdAt.toISOString(),
+    attempts: row.attempts,
+    lastError: row.lastError,
+  };
 }
 
 export async function readWebsiteSyncSettings(): Promise<WebsiteSyncSettings> {
-  try {
-    const raw = await readFile(settingsPath(), "utf8");
-    const parsed = JSON.parse(raw) as Partial<WebsiteSyncSettings>;
-    return {
-      ...DEFAULT_WEBSITE_SYNC,
-      ...parsed,
-      enabled: Boolean(parsed.enabled),
-      apiUrl: String(parsed.apiUrl ?? DEFAULT_WEBSITE_SYNC.apiUrl),
-      syncSecret: String(parsed.syncSecret ?? ""),
-      lastPublishAt: parsed.lastPublishAt ? String(parsed.lastPublishAt) : null,
-      lastFlushAt: parsed.lastFlushAt ? String(parsed.lastFlushAt) : null,
-      lastError: String(parsed.lastError ?? ""),
-      lastStatus: String(parsed.lastStatus ?? ""),
-    };
-  } catch {
-    return { ...DEFAULT_WEBSITE_SYNC };
-  }
+  return readAppSetting<WebsiteSyncSettings>(SETTINGS_KEY, DEFAULT_WEBSITE_SYNC);
 }
 
 export async function writeWebsiteSyncSettings(settings: WebsiteSyncSettings) {
-  const dest = settingsPath();
-  await mkdir(path.dirname(dest), { recursive: true });
-  await writeFile(dest, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  await writeAppSetting(SETTINGS_KEY, settings);
 }
 
 async function readQueue(): Promise<WebsiteSyncQueueItem[]> {
-  try {
-    const raw = await readFile(queuePath(), "utf8");
-    const parsed = JSON.parse(raw) as WebsiteSyncQueueItem[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  const rows = await prisma.websiteSyncQueueItem.findMany({ orderBy: { createdAt: "asc" } });
+  return rows.map(mapQueueRow);
 }
 
-async function writeQueue(items: WebsiteSyncQueueItem[]) {
-  const dest = queuePath();
-  await mkdir(path.dirname(dest), { recursive: true });
-  await writeFile(dest, `${JSON.stringify(items, null, 2)}\n`, "utf8");
-}
-
-let queueLock: Promise<unknown> = Promise.resolve();
-
-function exclusive<T>(fn: () => Promise<T>): Promise<T> {
-  const run = queueLock.then(fn, fn);
-  queueLock = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
+async function clearQueue() {
+  await prisma.websiteSyncQueueItem.deleteMany();
 }
 
 export async function enqueueWebsiteSync(kind: WebsiteSyncQueueKind, ref = "") {
-  return exclusive(async () => {
-    const settings = await readWebsiteSyncSettings();
-    if (!settings.enabled) return;
+  const settings = await readWebsiteSyncSettings();
+  if (!settings.enabled) return;
 
-    const queue = await readQueue();
-    const normalizedRef = String(ref ?? "").trim();
-    if (kind === "products" || kind === "company") {
-      if (queue.some((q) => q.kind === kind)) return;
-    } else if (queue.some((q) => q.kind === "asset" && q.ref === normalizedRef)) {
-      return;
-    }
+  const normalizedRef = String(ref ?? "").trim();
+  if (kind === "company" || kind === "products") {
+    const existing = await prisma.websiteSyncQueueItem.findFirst({ where: { kind } });
+    if (existing) return;
+  } else {
+    const existing = await prisma.websiteSyncQueueItem.findFirst({
+      where: { kind: "asset", ref: normalizedRef },
+    });
+    if (existing) return;
+  }
 
-    queue.push({
+  await prisma.websiteSyncQueueItem.create({
+    data: {
       id: randomBytes(8).toString("hex"),
       kind,
       ref: normalizedRef,
-      createdAt: new Date().toISOString(),
-      attempts: 0,
-      lastError: "",
-    });
-    await writeQueue(queue);
+    },
   });
 }
 
@@ -311,9 +281,7 @@ async function pushAsset(
   sku: string,
   asset: CatalogItem["productAssets"][number],
 ) {
-  const filePath = resolveDocumentPath(asset.storageKey);
-  const { readFile: readBinary } = await import("fs/promises");
-  const buf = await readBinary(filePath);
+  const buf = await readDocumentBytes(asset.storageKey);
   const bytes = new Uint8Array(buf);
   const form = new FormData();
   const file = new File([bytes], asset.fileName || "asset.bin", {
@@ -345,114 +313,109 @@ async function pushAssetsForItem(settings: WebsiteSyncSettings, item: CatalogIte
 }
 
 export async function publishWebsiteCatalog() {
-  return exclusive(async () => {
-    const settings = await readWebsiteSyncSettings();
-    normalizeApiUrl(settings.apiUrl);
-    if (!settings.syncSecret.trim()) throw new Error("Sync secret is required.");
+  const settings = await readWebsiteSyncSettings();
+  normalizeApiUrl(settings.apiUrl);
+  if (!settings.syncSecret.trim()) throw new Error("Sync secret is required.");
 
-    try {
-      await pushCompany(settings);
-      const catalog = await pushProducts(settings);
-      for (const item of catalog) {
-        await pushAssetsForItem(settings, item);
-      }
-      await writeQueue([]);
-      const next: WebsiteSyncSettings = {
-        ...settings,
-        lastPublishAt: new Date().toISOString(),
-        lastFlushAt: new Date().toISOString(),
-        lastError: "",
-        lastStatus: `Published ${catalog.length} finished SKUs`,
-      };
-      await writeWebsiteSyncSettings(next);
-      return { ok: true as const, count: catalog.length, settings: next };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Publish failed.";
-      const next = { ...settings, lastError: message, lastStatus: "Publish failed" };
-      await writeWebsiteSyncSettings(next);
-      throw new Error(message);
+  try {
+    await pushCompany(settings);
+    const catalog = await pushProducts(settings);
+    for (const item of catalog) {
+      await pushAssetsForItem(settings, item);
     }
-  });
+    await clearQueue();
+    const next: WebsiteSyncSettings = {
+      ...settings,
+      lastPublishAt: new Date().toISOString(),
+      lastFlushAt: new Date().toISOString(),
+      lastError: "",
+      lastStatus: `Published ${catalog.length} finished SKUs`,
+    };
+    await writeWebsiteSyncSettings(next);
+    return { ok: true as const, count: catalog.length, settings: next };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Publish failed.";
+    const next = { ...settings, lastError: message, lastStatus: "Publish failed" };
+    await writeWebsiteSyncSettings(next);
+    throw new Error(message);
+  }
 }
 
 export async function flushWebsiteSyncQueue(reason: "scheduled" | "manual" = "manual") {
-  return exclusive(async () => {
-    const settings = await readWebsiteSyncSettings();
-    if (reason === "scheduled" && !settings.enabled) {
-      return { ok: false as const, skipped: true as const, message: "Sync disabled." };
+  const settings = await readWebsiteSyncSettings();
+  if (reason === "scheduled" && !settings.enabled) {
+    return { ok: false as const, skipped: true as const, message: "Sync disabled." };
+  }
+  if (!settings.syncSecret.trim() || !settings.apiUrl.trim()) {
+    return { ok: false as const, skipped: true as const, message: "Sync not configured." };
+  }
+
+  const queue = await readQueue();
+  if (!queue.length) {
+    const next = { ...settings, lastFlushAt: new Date().toISOString() };
+    await writeWebsiteSyncSettings(next);
+    return { ok: true as const, skipped: true as const, message: "Queue empty.", flushed: 0 };
+  }
+
+  let flushed = 0;
+  let lastError = "";
+
+  try {
+    const hasCompany = queue.some((q) => q.kind === "company");
+    const hasProducts = queue.some((q) => q.kind === "products");
+    const assetSkus = [...new Set(queue.filter((q) => q.kind === "asset" && q.ref).map((q) => q.ref))];
+
+    if (hasCompany) {
+      await pushCompany(settings);
+      flushed += 1;
     }
-    if (!settings.syncSecret.trim() || !settings.apiUrl.trim()) {
-      return { ok: false as const, skipped: true as const, message: "Sync not configured." };
+    let catalog: CatalogItem[] | undefined;
+    if (hasProducts || assetSkus.length) {
+      catalog = await loadFinishedCatalog();
     }
-
-    const queue = await readQueue();
-    if (!queue.length) {
-      const next = { ...settings, lastFlushAt: new Date().toISOString() };
-      await writeWebsiteSyncSettings(next);
-      return { ok: true as const, skipped: true as const, message: "Queue empty.", flushed: 0 };
+    if (hasProducts) {
+      await pushProducts(settings, catalog);
+      flushed += 1;
     }
-
-    const remaining: WebsiteSyncQueueItem[] = [];
-    let flushed = 0;
-    let lastError = "";
-
-    try {
-      const hasCompany = queue.some((q) => q.kind === "company");
-      const hasProducts = queue.some((q) => q.kind === "products");
-      const assetSkus = [...new Set(queue.filter((q) => q.kind === "asset" && q.ref).map((q) => q.ref))];
-
-      if (hasCompany) {
-        await pushCompany(settings);
-        flushed += 1;
-      }
-      let catalog: CatalogItem[] | undefined;
-      if (hasProducts || assetSkus.length) {
-        catalog = await loadFinishedCatalog();
-      }
-      if (hasProducts) {
-        await pushProducts(settings, catalog);
-        flushed += 1;
-      }
-      for (const sku of assetSkus) {
-        const item = catalog?.find((c) => c.sku === sku);
-        if (!item) continue;
-        await pushAssetsForItem(settings, item);
-        flushed += 1;
-      }
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : "Flush failed.";
-      for (const item of queue) {
-        remaining.push({
-          ...item,
+    for (const sku of assetSkus) {
+      const item = catalog?.find((c) => c.sku === sku);
+      if (!item) continue;
+      await pushAssetsForItem(settings, item);
+      flushed += 1;
+    }
+  } catch (err) {
+    lastError = err instanceof Error ? err.message : "Flush failed.";
+    for (const item of queue) {
+      await prisma.websiteSyncQueueItem.update({
+        where: { id: item.id },
+        data: {
           attempts: item.attempts + 1,
           lastError,
-        });
-      }
+        },
+      });
     }
+  }
 
-    if (!lastError) {
-      await writeQueue([]);
-    } else {
-      await writeQueue(remaining.length ? remaining : queue);
-    }
+  if (!lastError) {
+    await clearQueue();
+  }
 
-    const next: WebsiteSyncSettings = {
-      ...settings,
-      lastFlushAt: new Date().toISOString(),
-      lastError,
-      lastStatus: lastError ? "Flush failed" : `Flushed ${flushed} job(s)`,
-    };
-    await writeWebsiteSyncSettings(next);
+  const next: WebsiteSyncSettings = {
+    ...settings,
+    lastFlushAt: new Date().toISOString(),
+    lastError,
+    lastStatus: lastError ? "Flush failed" : `Flushed ${flushed} job(s)`,
+  };
+  await writeWebsiteSyncSettings(next);
 
-    if (lastError && reason === "manual") throw new Error(lastError);
-    return {
-      ok: !lastError,
-      skipped: false as const,
-      flushed,
-      message: lastError || `Flushed ${flushed} job(s)`,
-      settings: next,
-    };
-  });
+  if (lastError && reason === "manual") throw new Error(lastError);
+  return {
+    ok: !lastError,
+    skipped: false as const,
+    flushed,
+    message: lastError || `Flushed ${flushed} job(s)`,
+    settings: next,
+  };
 }
 
 export async function fetchWebsiteInquiries(limit = 50) {

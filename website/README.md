@@ -16,28 +16,13 @@ Open http://localhost:3002
 
 ## Vercel deploy
 
-Vercel may auto-detect the ERP app at repo root and `services/sync-api`. **Only deploy `website/`** — the ERP runs on the office PC and sync-api runs on the Vultr VM.
+Use a **separate Vercel project** with **Root Directory → `website`**. The ERP runs at `erp.yatharthafoods.in` (repo root — see [../docs/DEPLOY.md](../docs/DEPLOY.md)); sync-api runs on the Vultr VM.
 
-### If you see the "Services" import screen
+### Recommended: single Next.js project
 
-1. Keep **Framework Preset → Services** (repo root has `vercel.json` for this).
-2. You should see one service: **website** (Next.js in `website/`).
-3. **Delete** the auto-detected ERP env vars (`DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`).
-4. Add these instead (Production):
-
-   | Variable | Value |
-   |----------|--------|
-   | `NEXT_PUBLIC_SITE_URL` | `https://yatharthafoods.in` |
-   | `NEXT_PUBLIC_API_URL` | `https://api.yatharthafoods.in` |
-   | `REVALIDATE_WEBHOOK_SECRET` | Same as VM `REVALIDATE_WEBHOOK_SECRET` |
-
-5. Click **Deploy**.
-
-### Alternative: single Next.js project (no Services)
-
-1. Set **Framework Preset → Next.js** (not Services).
+1. **Framework Preset → Next.js**
 2. **Root Directory → Edit → `website`**
-3. Add the three env vars above.
+3. Add env vars (Production):
 4. Deploy.
 
 ### After deploy
@@ -47,6 +32,7 @@ Vercel may auto-detect the ERP app at repo root and `services/sync-api`. **Only 
    - https://yatharthafoods.in loads
    - https://yatharthafoods.in/sitemap.xml
    - VM `VERCEL_REVALIDATE_URL` = `https://yatharthafoods.in/api/revalidate`
+3. From the repo: `powershell -File scripts/Verify-Website.ps1`
 
 ## DNS (website)
 

@@ -1,26 +1,26 @@
-# Deployment — Local ERP + VM + Vercel
+# Deployment — Cloud ERP + VM + Vercel website
 
-End-to-end setup for the hybrid architecture. Launch checklist: [GO_LIVE_CHECKLIST.md](GO_LIVE_CHECKLIST.md).
+End-to-end setup. Launch checklist: [GO_LIVE_CHECKLIST.md](GO_LIVE_CHECKLIST.md).
 
-## 1. Generate sync secret
+```text
+erp.yatharthafoods.in (Vercel ERP)  →  api.yatharthafoods.in (VM)  →  yatharthafoods.in (Vercel website)
+         PostgreSQL + Blob                      PostgreSQL
+```
+
+## 1. Generate secrets
 
 ```powershell
 powershell -File scripts/Generate-ProdSecrets.ps1 -Show
 ```
 
-Or a one-off 32-byte hex secret:
-
-```powershell
--join ((1..32 | ForEach-Object { '{0:x2}' -f (Get-Random -Max 256) }))
-```
-
 Use the same values in:
 
 - VM: `SYNC_SECRET`, `REVALIDATE_WEBHOOK_SECRET`, `POSTGRES_PASSWORD`
-- ERP: Settings → Website sync → Sync secret
-- Vercel: `REVALIDATE_WEBHOOK_SECRET`
+- Vercel **website** project: `REVALIDATE_WEBHOOK_SECRET`
+- Vercel **ERP** project: `AUTH_SECRET`, `CRON_SECRET`, `SETUP_SECRET` (one-time seed)
+- ERP Settings → Website sync → Sync secret (`SYNC_SECRET`)
 
-## 2. VM backend
+## 2. VM sync API
 
 On your Ubuntu VM:
 
@@ -32,77 +32,84 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 curl http://localhost:3001/health
 ```
 
-Caddy (`Caddyfile`) terminates HTTPS for `api.yatharthafoods.in` and reverse-proxies to the API. Firewall: allow **80/443** (Let's Encrypt needs 80). Do not publish Postgres.
+Caddy terminates HTTPS for `api.yatharthafoods.in`. Firewall: allow **80/443**.
 
 ### DNS — `api.yatharthafoods.in` (Cloudflare)
 
-The marketing site (`yatharthafoods.in`) may already point at Vercel/Cloudflare, but the **API subdomain is separate** and must be added manually.
-
-If `Resolve-DnsName api.yatharthafoods.in` returns **DNS name does not exist**, add this record in **Cloudflare → yatharthafoods.in → DNS**:
-
 | Type | Name | Content | Proxy |
 |------|------|---------|-------|
-| **A** | `api` | Your **Vultr VM public IPv4** | **DNS only** (grey cloud) |
+| **A** | `api` | Vultr VM public IPv4 | **DNS only** (grey cloud) |
 
-Use **DNS only** (not proxied) so Let's Encrypt on the VM can issue a cert for `api.yatharthafoods.in` and traffic goes straight to Caddy on the VM.
+Verify: `powershell -File scripts/Verify-ApiHealth.ps1`
 
-Verify from your PC:
+## 3. Vercel ERP (`erp.yatharthafoods.in`)
 
-```powershell
-powershell -File scripts/Verify-ApiHealth.ps1
+Create a **separate** Vercel project from the website project.
+
+| Setting | Value |
+|---------|-------|
+| Root directory | `.` (repo root) |
+| Framework | Next.js |
+| Region | `bom1` |
+| Build command | `npm run vercel-build` (or use [vercel.json](../vercel.json)) |
+
+### Provision
+
+1. **Neon PostgreSQL** — project **Yathartha foods** (`solitary-pine-12141341`). Use pooled `DATABASE_URL` and direct `DATABASE_URL_UNPOOLED` (both from `neon env pull` or Neon dashboard).
+2. **Vercel Blob** — create store; copy `BLOB_READ_WRITE_TOKEN`
+3. Set environment variables:
+
+```
+DATABASE_URL=<Neon pooled connection string>
+DATABASE_URL_UNPOOLED=<Neon direct connection string>
+NEON_BRANCH=production
+AUTH_SECRET=<random>
+AUTH_URL=https://erp.yatharthafoods.in
+BLOB_READ_WRITE_TOKEN=<from Vercel Blob>
+CRON_SECRET=<random>
+YATHARTH_DEPLOYMENT_ID=yatharth-erp-prod
+SETUP_SECRET=<random, remove after seeding>
 ```
 
-Expected: DNS shows the VM IP (not `104.21.x`); health returns JSON (e.g. `{"ok":true}`).
+4. Deploy from GitHub
+5. DNS: Cloudflare **CNAME** `erp` → `cname.vercel-dns.com` (or follow Vercel domain wizard)
+6. **Seed** (once, after first successful deploy):
 
-**Troubleshooting**
+```powershell
+$secret = "<SETUP_SECRET>"
+Invoke-RestMethod -Method POST -Uri "https://erp.yatharthafoods.in/api/setup/seed" -Headers @{ Authorization = "Bearer $secret" }
+```
 
-| Symptom | Cause | Fix |
-|---------|--------|-----|
-| `DNS name does not exist` | No `api` A record | Add A record in Cloudflare |
-| Cloudflare **525** | `api` is **proxied** (orange cloud) but VM has no valid HTTPS for Cloudflare to reach | Set `api` to **DNS only** (grey cloud), or install a valid TLS cert on the VM and use SSL mode **Full (strict)** |
-| DNS shows `104.21.x` / `2606:4700:…` | Record is proxied through Cloudflare | For VM + Caddy/Let's Encrypt, prefer **DNS only** |
-| DNS shows your Vultr IP but HTTPS fails | Caddy or sync-api not running | SSH: `docker compose -f docker-compose.yml -f docker-compose.prod.yml ps`, then `curl http://localhost:3001/health` |
+7. Remove `SETUP_SECRET` from Vercel env after seeding
+8. Sign in: `admin@yatharthafoods.in` / `Yatharth@Owner1` — **change password**
+9. Settings → Website sync → enable, API URL `https://api.yatharthafoods.in`, paste `SYNC_SECRET` → **Publish to website**
 
-## 3. Vercel website
+Verify: `powershell -File scripts/Verify-ErpHealth.ps1`
 
-1. Connect GitHub repo to Vercel.
-2. Root directory: `website`
-3. Environment:
+**Cron:** [vercel.json](../vercel.json) flushes the website sync queue every 2 minutes. Requires Vercel **Pro** for that schedule; on Hobby, use manual **Publish** or an external cron hitting `/api/sync/flush` with `Authorization: Bearer CRON_SECRET`.
+
+## 4. Vercel website (`yatharthafoods.in`)
+
+1. Separate Vercel project, root directory: `website`
+2. Environment:
    - `NEXT_PUBLIC_SITE_URL=https://yatharthafoods.in`
    - `NEXT_PUBLIC_API_URL=https://api.yatharthafoods.in`
    - `REVALIDATE_WEBHOOK_SECRET=<same as VM>`
 
-On VM `.env` also set:
+On VM `.env`:
 
 ```
 VERCEL_REVALIDATE_URL=https://yatharthafoods.in/api/revalidate
 REVALIDATE_WEBHOOK_SECRET=<same secret>
 ```
 
-After deploy:
-
-```powershell
-powershell -File scripts/Verify-Website.ps1
-```
-
-## 4. ERP desktop app
-
-1. Install / run ERP on office PC.
-2. Settings → Website sync:
-   - Enable sync
-   - VM API URL: `https://api.yatharthafoods.in`
-   - Sync secret: (from step 1)
-3. Click **Publish to website** — verify at `https://yatharthafoods.in/price-list`
-
-While ERP is open, queued changes flush about every 2 minutes (`/api/sync/flush` plus the Next scheduler). **Load enquiries** on the same Settings panel to see website contact form submissions.
+Verify: `powershell -File scripts/Verify-Website.ps1`
 
 ## 5. Verify data flow
 
 ```text
-Edit item price in ERP → auto-enqueued → flush → VM PostgreSQL → Vercel ISR / revalidate → website
+Edit SKU in ERP → queue → cron flush → VM PostgreSQL → website revalidate → yatharthafoods.in
 ```
-
-Manual test:
 
 ```bash
 curl https://api.yatharthafoods.in/v1/public/price-list
@@ -110,23 +117,27 @@ curl https://api.yatharthafoods.in/v1/public/price-list
 
 ## Local dev stack
 
-Terminal 1 — VM API (needs Docker for Postgres):
+Terminal 1 — Postgres:
+
+```bash
+npm run db:up
+npm run db:setup
+```
+
+Terminal 2 — ERP:
+
+```bash
+npm run dev
+```
+
+Terminal 3 — VM API (optional, for full sync test):
 
 ```bash
 cd services/sync-api
 docker compose up
 ```
 
-API is on **http://localhost:3001**.
-
-Terminal 2 — ERP:
-
-```bash
-npm run db:setup
-npm run dev
-```
-
-Terminal 3 — Website:
+Terminal 4 — Website:
 
 ```bash
 cd website
@@ -136,3 +147,13 @@ npm run dev
 ```
 
 In ERP Settings, use `http://localhost:3001` as API URL for local testing.
+
+## Desktop app (paused)
+
+Windows installer source remains under `electron/`. To build locally (not deployed):
+
+```bash
+npm run desktop:win
+```
+
+See [README.md](../README.md).

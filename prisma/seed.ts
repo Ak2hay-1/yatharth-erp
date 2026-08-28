@@ -3,9 +3,11 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-async function main() {
-  const password = await hash("Yatharth@123", 10);
+export async function seedDatabase() {
+  const ownerPassword = await hash("Yatharth@Owner1", 10);
 
+  await prisma.websiteSyncQueueItem.deleteMany();
+  await prisma.appSetting.deleteMany();
   await prisma.user.deleteMany();
   await prisma.monthlyReview.deleteMany();
   await prisma.complaintAttachment.deleteMany();
@@ -41,27 +43,13 @@ async function main() {
   await prisma.sequence.deleteMany();
   await prisma.company.deleteMany();
 
-  await prisma.user.createMany({
-    data: [
-      {
-        name: "Super Admin",
-        email: "superadmin@yatharth.local",
-        passwordHash: password,
-        role: "SUPER_ADMIN",
-      },
-      {
-        name: "Admin",
-        email: "admin@yatharth.local",
-        passwordHash: password,
-        role: "ADMIN",
-      },
-      {
-        name: "Staff",
-        email: "staff@yatharth.local",
-        passwordHash: password,
-        role: "STAFF",
-      },
-    ],
+  await prisma.user.create({
+    data: {
+      name: "Owner",
+      email: "admin@yatharthafoods.in",
+      passwordHash: ownerPassword,
+      role: "SUPER_ADMIN",
+    },
   });
 
   await prisma.company.create({
@@ -69,18 +57,18 @@ async function main() {
       id: "default",
       name: "YATHARTHA Foods & Beverages",
       legalName: "YATHARTHA Foods & Beverages",
-      gstin: "27AABCY1234A1Z5",
-      fssai: "11524999000012",
-      address: "Plot 12, Food Park, MIDC",
+      gstin: "",
+      fssai: "21526037002727",
+      address: "Shop No. 29, Harshal Heights",
       city: "Pune",
       state: "Maharashtra",
       stateCode: "27",
-      pincode: "411019",
-      phone: "020-40000000",
-      email: "accounts@yatharthfoods.in",
-      bankName: "HDFC Bank",
-      bankAccount: "50200012345678",
-      ifsc: "HDFC0000123",
+      pincode: "411033",
+      phone: "7028832038",
+      email: "admin@yatharthafoods.in",
+      bankName: "",
+      bankAccount: "",
+      ifsc: "",
       markupB2bPct: 20,
       markupWholesalePct: 25,
       markupDistributorPct: 35,
@@ -196,19 +184,19 @@ async function main() {
     prisma.item.create({
       data: {
         sku: "FG-VEG-PATTY",
-        name: "Veg burger patty 80g (pack of 10)",
+        name: "Veg Burger Patties — Regular (20/pkt)",
         type: "FINISHED",
         unit: "pack",
         hsn: "2106",
         gstRate: 5,
         shelfLifeDays: 90,
         reorderLevel: 40,
-        sellingPrice: 180,
+        sellingPrice: 320,
         purchasePrice: 0,
         lane: "POTATO_VEG",
         tier: "HERO",
         packType: "HORECA",
-        packSize: "10 pcs",
+        packSize: "20 pcs",
         gateTaste: true,
         gateCost: true,
         gateMargin: true,
@@ -221,20 +209,74 @@ async function main() {
     }),
     prisma.item.create({
       data: {
+        sku: "FG-ALOO-BURGER",
+        name: "Aloo Burger Patties — Regular (20/pkt)",
+        type: "FINISHED",
+        unit: "pack",
+        hsn: "2106",
+        gstRate: 5,
+        shelfLifeDays: 90,
+        reorderLevel: 40,
+        sellingPrice: 280,
+        purchasePrice: 0,
+        lane: "POTATO_VEG",
+        tier: "HERO",
+        packType: "HORECA",
+        packSize: "20 pcs",
+      },
+    }),
+    prisma.item.create({
+      data: {
+        sku: "FG-CRISPY-ALOO",
+        name: "Crispy Aloo Patties — Regular (20/pkt)",
+        type: "FINISHED",
+        unit: "pack",
+        hsn: "2106",
+        gstRate: 5,
+        shelfLifeDays: 90,
+        reorderLevel: 40,
+        sellingPrice: 300,
+        purchasePrice: 0,
+        lane: "POTATO_VEG",
+        tier: "CORE",
+        packType: "HORECA",
+        packSize: "20 pcs",
+      },
+    }),
+    prisma.item.create({
+      data: {
+        sku: "FG-CHEESE-CORN",
+        name: "Cheese Corn Nuggets (55/pkt)",
+        type: "FINISHED",
+        unit: "pack",
+        hsn: "2106",
+        gstRate: 5,
+        shelfLifeDays: 90,
+        reorderLevel: 30,
+        sellingPrice: 583,
+        purchasePrice: 0,
+        lane: "POTATO_VEG",
+        tier: "CORE",
+        packType: "HORECA",
+        packSize: "55 pcs",
+      },
+    }),
+    prisma.item.create({
+      data: {
         sku: "FG-CHK-PATTY",
-        name: "Chicken burger patty 90g (pack of 10)",
+        name: "Chicken Burger Patties — Regular (20/pkt)",
         type: "FINISHED",
         unit: "pack",
         hsn: "1602",
         gstRate: 5,
         shelfLifeDays: 60,
         reorderLevel: 30,
-        sellingPrice: 260,
+        sellingPrice: 420,
         purchasePrice: 0,
         lane: "CHICKEN",
         tier: "HERO",
         packType: "HORECA",
-        packSize: "10 pcs",
+        packSize: "20 pcs",
         gateTaste: true,
         gateCost: true,
         gateMargin: true,
@@ -243,6 +285,60 @@ async function main() {
         gateShelfLife: true,
         gateAcceptance: true,
         gateRepeat: false,
+      },
+    }),
+    prisma.item.create({
+      data: {
+        sku: "FG-CRISPY-CHK",
+        name: "Crispy Chicken Burger Patties — Regular (20/pkt)",
+        type: "FINISHED",
+        unit: "pack",
+        hsn: "1602",
+        gstRate: 5,
+        shelfLifeDays: 60,
+        reorderLevel: 25,
+        sellingPrice: 450,
+        purchasePrice: 0,
+        lane: "CHICKEN",
+        tier: "HERO",
+        packType: "HORECA",
+        packSize: "20 pcs",
+      },
+    }),
+    prisma.item.create({
+      data: {
+        sku: "FG-CHK-BALLS",
+        name: "Chicken Cheese Balls (25/pkt)",
+        type: "FINISHED",
+        unit: "pack",
+        hsn: "1602",
+        gstRate: 5,
+        shelfLifeDays: 60,
+        reorderLevel: 25,
+        sellingPrice: 550,
+        purchasePrice: 0,
+        lane: "CHICKEN",
+        tier: "CORE",
+        packType: "HORECA",
+        packSize: "25 pcs",
+      },
+    }),
+    prisma.item.create({
+      data: {
+        sku: "FG-CHK-CHEESE-NUG",
+        name: "Chicken Cheese Nuggets (55/pkt)",
+        type: "FINISHED",
+        unit: "pack",
+        hsn: "1602",
+        gstRate: 5,
+        shelfLifeDays: 60,
+        reorderLevel: 25,
+        sellingPrice: 660,
+        purchasePrice: 0,
+        lane: "CHICKEN",
+        tier: "CORE",
+        packType: "HORECA",
+        packSize: "55 pcs",
       },
     }),
     prisma.item.create({
@@ -284,6 +380,43 @@ async function main() {
   ]);
 
   const bySku = Object.fromEntries(items.map((i) => [i.sku, i]));
+
+  // Flyer reference photos → Product Media (replace with pack shots later)
+  const { copyFileSync, existsSync, mkdirSync, statSync } = await import("fs");
+  const path = await import("path");
+  const docsRoot = path.join(process.cwd(), "uploads", "documents");
+  mkdirSync(docsRoot, { recursive: true });
+  const refDir = path.join(process.cwd(), "media", "product-refs");
+  const photoSkus = [
+    "FG-ALOO-BURGER",
+    "FG-CRISPY-ALOO",
+    "FG-VEG-PATTY",
+    "FG-CHEESE-CORN",
+    "FG-CHK-PATTY",
+    "FG-CRISPY-CHK",
+    "FG-CHK-BALLS",
+    "FG-CHK-CHEESE-NUG",
+  ] as const;
+  for (const sku of photoSkus) {
+    const src = path.join(refDir, `${sku}.jpg`);
+    if (!existsSync(src) || !bySku[sku]) continue;
+    const storageKey = `seed-${sku.toLowerCase()}.jpg`;
+    const dest = path.join(docsRoot, storageKey);
+    copyFileSync(src, dest);
+    const sizeBytes = statSync(dest).size;
+    await prisma.productAsset.create({
+      data: {
+        itemId: bySku[sku].id,
+        kind: "PACK_SHOT",
+        title: "Catalog flyer reference",
+        fileName: `${sku}.jpg`,
+        mimeType: "image/jpeg",
+        sizeBytes,
+        storageKey,
+        notes: "Cropped from price-list flyer — replace with pack shot when available.",
+      },
+    });
+  }
 
   await prisma.recipe.create({
     data: {
@@ -536,15 +669,25 @@ async function main() {
   await openLot("FG-VEG-PATTY", "OPN-VEG-01", 80, add(-1), add(89));
   await openLot("FG-PAV-BHAJI", "OPN-PAV-01", 60, add(-2), add(40));
 
-  console.log("Seeded Yatharth Foods demo data.");
-  console.log("Login: superadmin@yatharth.local / Yatharth@123");
+  console.log("Seeded Yatharth Foods production template.");
+  console.log("Login: admin@yatharthafoods.in / Yatharth@Owner1 (change after first login)");
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+async function main() {
+  await seedDatabase();
+}
+
+const isSeedCli = process.argv.some((arg) =>
+  arg.replace(/\\/g, "/").includes("prisma/seed"),
+);
+
+if (isSeedCli) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
