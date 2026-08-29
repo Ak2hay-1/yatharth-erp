@@ -86,7 +86,7 @@ Invoke-RestMethod -Method POST -Uri "https://erp.yatharthafoods.in/api/setup/see
 
 Verify: `powershell -File scripts/Verify-ErpHealth.ps1`
 
-**Cron:** [vercel.json](../vercel.json) flushes the website sync queue every 2 minutes. Requires Vercel **Pro** for that schedule; on Hobby, use manual **Publish** or an external cron hitting `/api/sync/flush` with `Authorization: Bearer CRON_SECRET`.
+**Cron:** [vercel.json](../vercel.json) flushes the website sync queue once daily (`0 4 * * *` UTC) on Hobby. For ~every 2 minutes, upgrade to Vercel **Pro** and set `schedule` to `*/2 * * * *`, or use manual **Publish / Flush** in Settings anytime.
 
 ## 4. Vercel website (`yatharthafoods.in`)
 
