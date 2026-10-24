@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { GST_RATES, INDIAN_STATES, UNITS, toInputDate } from "@/lib/utils";
 import type { Item, Party } from "@prisma/client";
 import { Field, Input, Select, Textarea } from "@/components/ui";
@@ -16,7 +19,7 @@ export function ItemForm({
   item,
   seed,
 }: {
-  action: (formData: FormData) => void | Promise<void>;
+  action: (formData: FormData) => Promise<unknown> | void;
   item?: Item;
   seed?: ItemFormSeed;
 }) {
@@ -53,7 +56,7 @@ export function ItemForm({
       <Field label="GST %">
         <Select name="gstRate" defaultValue={String(item?.gstRate ?? 5)}>
           {GST_RATES.map((r) => (
-            <option key={r} value={r}>
+            <option key={r} value={String(r)}>
               {r}%
             </option>
           ))}
@@ -122,6 +125,19 @@ export function ItemForm({
         </div>
       </div>
       <div className="md:col-span-2">
+        <input type="hidden" name="activeFlag" value="1" />
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="isActive"
+            value="true"
+            defaultChecked={item?.isActive !== false}
+            className="accent-[var(--saffron,#fe7733)]"
+          />
+          Active
+        </label>
+      </div>
+      <div className="md:col-span-2">
         <SubmitButton>{item ? "Save item" : "Create item"}</SubmitButton>
       </div>
     </ActionForm>
@@ -131,6 +147,7 @@ export function ItemForm({
 export type PartyFormSeed = {
   name?: string;
   kind?: Party["kind"];
+  lifecycle?: Party["lifecycle"];
 };
 
 export function PartyForm({
@@ -138,18 +155,27 @@ export function PartyForm({
   party,
   seed,
 }: {
-  action: (formData: FormData) => void | Promise<void>;
+  action: (formData: FormData) => Promise<unknown> | void;
   party?: Party;
   seed?: PartyFormSeed;
 }) {
   const stateValue = party ? `${party.stateCode}|${party.state}` : "27|Maharashtra";
+  const [kind, setKind] = useState(party?.kind ?? seed?.kind ?? "CUSTOMER");
+  const [lifecycle, setLifecycle] = useState(party?.lifecycle ?? seed?.lifecycle ?? "CUSTOMER");
+  const supplierOnly = kind === "SUPPLIER";
+  const prospect = !supplierOnly && lifecycle === "PROSPECT";
   return (
     <ActionForm action={action} className="grid gap-4 md:grid-cols-2">
       <Field label="Name" className="md:col-span-2">
         <Input name="name" required defaultValue={party?.name ?? seed?.name} />
       </Field>
       <Field label="Kind">
-        <Select name="kind" defaultValue={party?.kind ?? seed?.kind ?? "CUSTOMER"} required>
+        <Select
+          name="kind"
+          defaultValue={party?.kind ?? seed?.kind ?? "CUSTOMER"}
+          required
+          onChange={(e) => setKind(e.target.value as Party["kind"])}
+        >
           <option value="CUSTOMER">Customer</option>
           <option value="SUPPLIER">Supplier</option>
           <option value="BOTH">Both</option>
@@ -170,15 +196,28 @@ export function PartyForm({
           ))}
         </Select>
       </Field>
-      <Field label="Lifecycle">
-        <Select name="lifecycle" defaultValue={party?.lifecycle ?? "CUSTOMER"}>
-          {PARTY_LIFECYCLES.map((x) => (
-            <option key={x.value} value={x.value}>
-              {x.label}
-            </option>
-          ))}
-        </Select>
-      </Field>
+      {supplierOnly ? (
+        <Field label="Status">
+          <Select name="supplierActive" defaultValue={party && !party.isActive ? "false" : "true"}>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </Select>
+        </Field>
+      ) : (
+        <Field label="Lifecycle">
+          <Select
+            name="lifecycle"
+            defaultValue={party?.lifecycle ?? seed?.lifecycle ?? "CUSTOMER"}
+            onChange={(e) => setLifecycle(e.target.value as Party["lifecycle"])}
+          >
+            {PARTY_LIFECYCLES.map((x) => (
+              <option key={x.value} value={x.value}>
+                {x.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
       <Field label="GSTIN">
         <Input name="gstin" defaultValue={party?.gstin} />
       </Field>
@@ -203,9 +242,13 @@ export function PartyForm({
       <Field label="PIN">
         <Input name="pincode" defaultValue={party?.pincode} />
       </Field>
-      <Field label="Credit limit">
-        <Input name="creditLimit" type="number" step="0.01" defaultValue={party?.creditLimit ?? 0} />
-      </Field>
+      {supplierOnly || prospect ? (
+        <input type="hidden" name="creditLimit" value="0" />
+      ) : (
+        <Field label="Credit limit">
+          <Input name="creditLimit" type="number" step="0.01" defaultValue={party?.creditLimit ?? 0} />
+        </Field>
+      )}
       <Field label="Payment terms (days)">
         <Input name="paymentTermsDays" type="number" min="0" defaultValue={party?.paymentTermsDays ?? 30} />
       </Field>

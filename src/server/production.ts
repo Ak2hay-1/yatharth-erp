@@ -5,12 +5,18 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { OPS } from "@/lib/permissions";
-import { addDays, parseNum, requiredString } from "@/lib/utils";
+import { addDays, parseNum, requireCalendarDate, requiredString } from "@/lib/utils";
 import { nextNumberTx } from "@/server/numbers";
 import { addStock, consumeStock } from "@/server/stock";
 import { productionBatchCost } from "@/server/costing";
+import { runAction } from "@/lib/run-action";
+
+function formDate(formData: FormData, key: string, label: string) {
+  return requireCalendarDate(requiredString(formData.get(key), label), label);
+}
 
 export async function createWorkOrder(formData: FormData) {
+  return runAction(async () => {
   await requireRole(OPS);
   const wo = await prisma.$transaction(async (tx) => {
     const number = await nextNumberTx(tx, "WO");
@@ -19,23 +25,40 @@ export async function createWorkOrder(formData: FormData) {
         number,
         recipeId: requiredString(formData.get("recipeId"), "Recipe"),
         plannedQty: parseNum(formData.get("plannedQty")),
-        date: new Date(requiredString(formData.get("date"), "Date")),
+        date: formDate(formData, "date", "Date"),
         notes: String(formData.get("notes") ?? ""),
       },
     });
   });
   revalidatePath("/production/orders");
   redirect(`/production/orders/${wo.id}`);
+  });
+}
+
+export async function cancelWorkOrder(id: string) {
+  return runAction(async () => {
+    await requireRole(OPS);
+    const wo = await prisma.workOrder.findUnique({ where: { id }, include: { batches: { select: { id: true } } } });
+    if (!wo) throw new Error("Work order not found");
+    if (wo.status === "COMPLETED" || wo.batches.length > 0) {
+      throw new Error("Production is already complete and cannot be cancelled");
+    }
+    if (wo.status === "CANCELLED") throw new Error("Work order is already cancelled");
+    await prisma.workOrder.update({ where: { id }, data: { status: "CANCELLED" } });
+    revalidatePath(`/production/orders/${id}`);
+    revalidatePath("/production/orders");
+  });
 }
 
 export async function produceBatch(formData: FormData) {
+  return runAction(async () => {
   await requireRole(OPS);
   const workOrderId = requiredString(formData.get("workOrderId"), "Work order");
   const outputQty = parseNum(formData.get("outputQty"));
   const wastageQty = parseNum(formData.get("wastageQty"));
   const rejectQty = parseNum(formData.get("rejectQty"));
   const lotNo = requiredString(formData.get("lotNo"), "Lot no");
-  const mfgDate = new Date(requiredString(formData.get("mfgDate"), "Mfg date"));
+  const mfgDate = formDate(formData, "mfgDate", "Mfg date");
   const operator = String(formData.get("operator") ?? "");
   const actualWeightRaw = String(formData.get("actualWeight") ?? "");
   const actualWeight = actualWeightRaw ? parseNum(formData.get("actualWeight")) : null;
@@ -63,8 +86,9 @@ export async function produceBatch(formData: FormData) {
       });
     }
 
-    const expiryDate = formData.get("expiryDate")
-      ? new Date(String(formData.get("expiryDate")))
+    const expiryRaw = String(formData.get("expiryDate") ?? "").trim();
+    const expiryDate = expiryRaw
+      ? requireCalendarDate(expiryRaw, "Expiry")
       : addDays(mfgDate, wo.recipe.finishedItem.shelfLifeDays);
 
     const { totalCost, unitCost } = await productionBatchCost(tx, wo.recipe, outputQty, wastageQty + rejectQty);
@@ -132,4 +156,5 @@ export async function produceBatch(formData: FormData) {
   revalidatePath("/production/orders");
   revalidatePath("/inventory/stock");
   redirect(`/production/batches/${produced.id}`);
+  });
 }

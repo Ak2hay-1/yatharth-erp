@@ -17,14 +17,16 @@ export function PaymentFields({
   defaultPartyId,
   canCreate = false,
 }: {
-  action: (formData: FormData) => void | Promise<void>;
+  action: (formData: FormData) => Promise<unknown> | void;
   direction: "IN" | "OUT";
   parties: { id: string; name: string }[];
   docsByParty: Record<string, Doc[]>;
   defaultPartyId?: string;
   canCreate?: boolean;
 }) {
-  const [partyId, setPartyId] = useState(defaultPartyId && parties.some((p) => p.id === defaultPartyId) ? defaultPartyId : parties[0]?.id ?? "");
+  const [partyId, setPartyId] = useState(
+    defaultPartyId && parties.some((p) => p.id === defaultPartyId) ? defaultPartyId : "",
+  );
   const [amount, setAmount] = useState("");
   const docs = docsByParty[partyId] ?? [];
   const [alloc, setAlloc] = useState<Record<string, string>>({});

@@ -27,36 +27,151 @@ export function qty(n: number, unit?: string) {
   return unit ? `${v} ${unit}` : v;
 }
 
+export const APP_TZ = "Asia/Kolkata";
+const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+
+export function istParts(d = new Date()) {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: APP_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const bag: Record<string, string> = {};
+  for (const part of fmt.formatToParts(d)) {
+    if (part.type !== "literal") bag[part.type] = part.value;
+  }
+  let hour = Number(bag.hour);
+  if (hour === 24) hour = 0;
+  return {
+    year: Number(bag.year),
+    month: Number(bag.month),
+    day: Number(bag.day),
+    hour,
+    minute: Number(bag.minute),
+  };
+}
+
+function ymd(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function todayInputDate(now = new Date()) {
+  const p = istParts(now);
+  return ymd(p.year, p.month, p.day);
+}
+
 export function formatDate(d: Date | string | null | undefined) {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: APP_TZ,
+  });
 }
 
 export function formatDateTime(d: Date | string | null | undefined) {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: APP_TZ,
   });
 }
 
+/** Calendar day in Asia/Kolkata, as `YYYY-MM-DD` for `<input type="date">`. */
 export function toInputDate(d?: Date | string | null) {
-  const date = d ? new Date(d) : new Date();
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  if (d == null || d === "") return todayInputDate();
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return todayInputDate();
+  const p = istParts(date);
+  return ymd(p.year, p.month, p.day);
 }
 
+/** `YYYY-MM-DDTHH:mm` in Asia/Kolkata for `<input type="datetime-local">`. */
+export function toInputDateTime(d?: Date | string | null) {
+  const date = d ? (typeof d === "string" ? new Date(d) : d) : new Date();
+  if (Number.isNaN(date.getTime())) return `${todayInputDate()}T09:00`;
+  const p = istParts(date);
+  return `${ymd(p.year, p.month, p.day)}T${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+}
+
+/** Parse `YYYY-MM-DD` as midnight in Asia/Kolkata. Returns null when the day is not real. */
+export function parseCalendarDate(value: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0) - IST_OFFSET_MS);
+  const p = istParts(date);
+  if (p.year !== year || p.month !== month || p.day !== day) return null;
+  return date;
+}
+
+/** Parse a date or `YYYY-MM-DDTHH:mm` as Asia/Kolkata wall time. */
+export function parseCalendarDateTime(value: string): Date | null {
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return parseCalendarDate(trimmed);
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(trimmed);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  if (hour > 23 || minute > 59) return null;
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, 0) - IST_OFFSET_MS);
+  const p = istParts(date);
+  if (p.year !== year || p.month !== month || p.day !== day || p.hour !== hour || p.minute !== minute) return null;
+  return date;
+}
+
+export function requireCalendarDate(value: string, label: string) {
+  const date = parseCalendarDate(value);
+  if (!date) throw new Error(`${label} is not a valid date`);
+  return date;
+}
+
+export function startOfTodayIst(now = new Date()) {
+  return parseCalendarDate(todayInputDate(now)) ?? new Date();
+}
+
+export function endOfDayIst(day: Date) {
+  const start = parseCalendarDate(toInputDate(day));
+  if (!start) return day;
+  return new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+}
+
+export function monthBoundsIst(ref = new Date()) {
+  const { year, month } = istParts(ref);
+  const start = parseCalendarDate(ymd(year, month, 1)) ?? ref;
+  const next =
+    month === 12
+      ? parseCalendarDate(ymd(year + 1, 1, 1))
+      : parseCalendarDate(ymd(year, month + 1, 1));
+  const end = new Date((next ?? start).getTime() - 1);
+  return { start, end, key: `${year}-${String(month).padStart(2, "0")}` };
+}
+
+/** Add calendar days in Asia/Kolkata and return that day's IST midnight. */
 export function addDays(d: Date, days: number) {
-  const next = new Date(d);
-  next.setDate(next.getDate() + days);
-  return next;
+  const [year, month, day] = toInputDate(d).split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  const next = ymd(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate());
+  return parseCalendarDate(next) ?? d;
 }
 
 export function parseNum(v: FormDataEntryValue | null, fallback = 0) {

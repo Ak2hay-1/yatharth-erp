@@ -4,7 +4,7 @@ import { Card, PageHeader, Table, Td, Th, Empty, Badge, LinkButton } from "@/com
 import { ListFilters } from "@/components/list-filters";
 import { UnitConverter } from "@/components/unit-converter";
 import { parseListQuery } from "@/lib/filters";
-import { qty } from "@/lib/utils";
+import { qty, startOfTodayIst } from "@/lib/utils";
 
 export default async function StockPage({
   searchParams,
@@ -33,7 +33,7 @@ export default async function StockPage({
       <Card className="p-2">
         <ListFilters q={q} placeholder="SKU or item name" />
         {items.length === 0 ? (
-          <Empty>No items match.</Empty>
+          <Empty>{q ? `No items match “${q}”.` : "No items yet."}</Empty>
         ) : (
           <Table>
             <thead>
@@ -47,8 +47,14 @@ export default async function StockPage({
             </thead>
             <tbody>
               {items.map((item) => {
-                const onHand = item.batches.reduce((s, b) => s + b.qtyOnHand, 0);
-                const low = item.reorderLevel > 0 && onHand <= item.reorderLevel;
+                const today = startOfTodayIst();
+                const available = item.batches
+                  .filter((b) => b.qtyOnHand > 0 && (!b.expiryDate || b.expiryDate >= today))
+                  .reduce((s, b) => s + b.qtyOnHand, 0);
+                const expiredQty = item.batches
+                  .filter((b) => b.qtyOnHand > 0 && b.expiryDate && b.expiryDate < today)
+                  .reduce((s, b) => s + b.qtyOnHand, 0);
+                const low = item.reorderLevel > 0 && available <= item.reorderLevel;
                 return (
                   <tr key={item.id}>
                     <Td>
@@ -57,7 +63,10 @@ export default async function StockPage({
                     </Td>
                     <Td>{item.type}</Td>
                     <Td>
-                      {qty(onHand, item.unit)} {low ? <Badge tone="warn">Low</Badge> : null}
+                      {qty(available, item.unit)} {low ? <Badge tone="warn">Low</Badge> : null}
+                      {expiredQty > 0.0005 ? (
+                        <div className="text-xs text-bad">Expired {qty(expiredQty, item.unit)}</div>
+                      ) : null}
                     </Td>
                     <Td>{qty(item.reorderLevel, item.unit)}</Td>
                     <Td>

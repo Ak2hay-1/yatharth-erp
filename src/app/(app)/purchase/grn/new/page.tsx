@@ -1,4 +1,4 @@
-import { Card, PageHeader } from "@/components/ui";
+import { Card, LinkButton, PageHeader } from "@/components/ui";
 import { GrnForm } from "@/components/grn-form";
 import { createGoodsReceipt } from "@/server/purchase";
 import { prisma } from "@/lib/prisma";
@@ -51,6 +51,7 @@ export default async function NewGrnPage({
       <PageHeader
         title="New goods receipt"
         subtitle="Qty defaults to what is still open. Changing PO reloads lines. Partial GRN leaves the PO open."
+        actions={<LinkButton href="/purchase/grn" variant="secondary">Cancel</LinkButton>}
       />
       <Card className="p-6">
         {payload.length === 0 ? (

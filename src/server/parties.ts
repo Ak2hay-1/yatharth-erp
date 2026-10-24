@@ -6,21 +6,28 @@ import type { BuyerCluster, CustomerChannel, PartyKind, PartyLifecycle } from "@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { MANAGEMENT } from "@/lib/permissions";
-import { parseNum, requiredString } from "@/lib/utils";
+import { parseNum, requireCalendarDate, requiredString } from "@/lib/utils";
+import { runAction } from "@/lib/run-action";
 
 function partyData(formData: FormData) {
   const kind = requiredString(formData.get("kind"), "Kind") as PartyKind;
   const channelRaw = String(formData.get("channel") ?? "");
   const state = String(formData.get("state") ?? "");
   const [stateCode, ...rest] = state.split("|");
-  const lifecycle = (String(formData.get("lifecycle") || "CUSTOMER") as PartyLifecycle);
+  const lifecycleRaw = (String(formData.get("lifecycle") || "CUSTOMER") as PartyLifecycle);
+  const supplierOnly = kind === "SUPPLIER";
+  const lifecycle: PartyLifecycle = supplierOnly ? "CUSTOMER" : lifecycleRaw;
+  const creditLimit = supplierOnly || lifecycle === "PROSPECT" ? 0 : parseNum(formData.get("creditLimit"));
+  const isActive = supplierOnly
+    ? formData.get("supplierActive") !== "false"
+    : lifecycle !== "INACTIVE";
   const nextReorder = String(formData.get("nextReorderDate") ?? "");
   return {
     name: requiredString(formData.get("name"), "Name"),
     kind,
     channel: kind === "SUPPLIER" ? null : ((channelRaw || "B2B") as CustomerChannel),
     cluster: kind === "SUPPLIER" ? "NONE" as const : ((String(formData.get("cluster") || "NONE") as BuyerCluster)),
-    lifecycle: kind === "SUPPLIER" ? "CUSTOMER" as const : lifecycle,
+    lifecycle,
     gstin: String(formData.get("gstin") ?? ""),
     phone: String(formData.get("phone") ?? ""),
     email: String(formData.get("email") ?? ""),
@@ -30,24 +37,27 @@ function partyData(formData: FormData) {
     state: rest.join("|") || stateCode,
     stateCode,
     pincode: String(formData.get("pincode") ?? ""),
-    creditLimit: parseNum(formData.get("creditLimit")),
+    creditLimit,
     paymentTermsDays: Math.round(parseNum(formData.get("paymentTermsDays"), 30)),
     reorderCycleDays: Math.round(parseNum(formData.get("reorderCycleDays"), 30)),
-    nextReorderDate: nextReorder ? new Date(nextReorder) : null,
+    nextReorderDate: nextReorder ? requireCalendarDate(nextReorder, "Next reorder date") : null,
     lostReason: String(formData.get("lostReason") ?? ""),
-    isActive: lifecycle !== "INACTIVE" && formData.get("isActive") !== "false",
+    isActive,
   };
 }
 
 export async function createParty(formData: FormData) {
+  return runAction(async () => {
   await requireRole(MANAGEMENT);
   await prisma.party.create({ data: partyData(formData) });
   revalidatePath("/masters/parties");
   redirect("/masters/parties");
+  });
 }
 
 /** Create a party and return it (for inline creatable pickers). Does not redirect. */
 export async function createPartyQuick(formData: FormData) {
+  return runAction(async () => {
   await requireRole(MANAGEMENT);
   const data = partyData(formData);
   const party = await prisma.party.create({ data });
@@ -59,11 +69,31 @@ export async function createPartyQuick(formData: FormData) {
     phone: party.phone,
     city: party.city,
   };
+  });
 }
 
 export async function updateParty(id: string, formData: FormData) {
+  return runAction(async () => {
   await requireRole(MANAGEMENT);
   await prisma.party.update({ where: { id }, data: partyData(formData) });
   revalidatePath("/masters/parties");
   redirect("/masters/parties");
+  });
+}
+
+export async function setPartyActive(id: string, active: boolean) {
+  return runAction(async () => {
+    await requireRole(MANAGEMENT);
+    const party = await prisma.party.findUnique({ where: { id } });
+    if (!party) throw new Error("Party not found");
+    await prisma.party.update({
+      where: { id },
+      data: {
+        isActive: active,
+        lifecycle: party.kind === "SUPPLIER" ? party.lifecycle : active ? (party.lifecycle === "INACTIVE" ? "CUSTOMER" : party.lifecycle) : "INACTIVE",
+      },
+    });
+    revalidatePath(`/masters/parties/${id}`);
+    revalidatePath("/masters/parties");
+  });
 }

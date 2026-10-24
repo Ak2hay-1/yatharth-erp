@@ -7,7 +7,7 @@ import { ActionForm } from "@/components/action-form";
 import { suggestedRate } from "@/lib/rate-math";
 
 type Props = {
-  action: (formData: FormData) => void | Promise<void>;
+  action: (formData: FormData) => Promise<unknown> | void;
   defaults: {
     mfgCost: number;
     mfgCostSource: string;

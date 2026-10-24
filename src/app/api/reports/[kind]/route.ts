@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { FINANCE } from "@/lib/permissions";
 import { csvResponse, exportStamp } from "@/lib/csv";
-import { addDays, formatDate } from "@/lib/utils";
+import { addDays, endOfDayIst, formatDate, round2, startOfTodayIst } from "@/lib/utils";
 import { getMentorKpis } from "@/server/kpis";
 import { labelOf, WASTE_CAUSES } from "@/lib/labels";
 
@@ -16,6 +16,7 @@ const KINDS = [
   "production",
   "waste",
   "expiry",
+  "payments",
 ] as const;
 
 type Kind = (typeof KINDS)[number];
@@ -86,7 +87,7 @@ export async function GET(_request: Request, context: { params: Promise<{ kind: 
 
   if (raw === "sales") {
     const invoices = await prisma.invoice.findMany({
-      where: { status: { not: "CANCELLED" } },
+      where: { status: "CONFIRMED" },
       include: { customer: true },
       orderBy: { date: "desc" },
       take: 5000,
@@ -183,10 +184,35 @@ export async function GET(_request: Request, context: { params: Promise<{ kind: 
     );
   }
 
+  if (raw === "payments") {
+    const payments = await prisma.payment.findMany({
+      include: { party: true, allocations: true },
+      orderBy: { date: "desc" },
+      take: 5000,
+    });
+    return csvResponse(
+      `payments-${stamp}.csv`,
+      ["Number", "Party", "Direction", "Date", "Mode", "Amount", "Allocated", "Unallocated", "Reference"],
+      payments.map((p) => {
+        const allocated = round2(p.allocations.reduce((s, a) => s + a.amount, 0));
+        return [
+          p.number,
+          p.party.name,
+          p.direction,
+          formatDate(p.date),
+          p.mode,
+          p.amount,
+          allocated,
+          round2(p.amount - allocated),
+          p.reference,
+        ];
+      }),
+    );
+  }
+
   // expiry
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const in30 = addDays(start, 30);
+  const start = startOfTodayIst();
+  const in30 = endOfDayIst(addDays(start, 30));
   const batches = await prisma.batch.findMany({
     where: { qtyOnHand: { gt: 0 }, expiryDate: { lte: in30 } },
     include: { item: true },

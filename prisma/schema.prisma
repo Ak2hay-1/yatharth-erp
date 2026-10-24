@@ -359,6 +359,7 @@ model GoodsReceiptLine {
   itemId     String
   item       Item         @relation(fields: [itemId], references: [id])
   qty        Float
+  rate       Float        @default(0)
   lotNo      String
   mfgDate    DateTime?
   expiryDate DateTime?

@@ -43,7 +43,7 @@ export function LabelEditor({
   action,
   defaults,
 }: {
-  action: (formData: FormData) => void | Promise<void>;
+  action: (formData: FormData) => Promise<unknown> | void;
   defaults: LabelDefaults;
 }) {
   const [lines, setLines] = useState<Line[]>(

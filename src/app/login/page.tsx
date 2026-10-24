@@ -30,7 +30,7 @@ export default function LoginPage() {
           </Button>
         </form>
         <p className="mt-6 text-xs text-muted">
-          There is no self-registration. Ask your Super Admin if you need a login.
+          There is no self-registration. Forgot password? Ask a Super Admin to reset it.
         </p>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, Table, Td, Th, Empty, Badge, LinkButton } from "@/components/ui";
-import { addDays, formatDate, money, qty } from "@/lib/utils";
+import { addDays, endOfDayIst, formatDate, money, qty, round2, startOfTodayIst } from "@/lib/utils";
 import { getMentorKpis } from "@/server/kpis";
 import { labelOf, WASTE_CAUSES } from "@/lib/labels";
 
@@ -13,15 +13,19 @@ function ExportLink({ kind, label = "Download CSV" }: { kind: string; label?: st
   );
 }
 
-export default async function ReportsPage() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const in30 = addDays(start, 30);
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ unallocated?: string }>;
+}) {
+  const unallocatedOnly = (await searchParams).unallocated === "1";
+  const start = startOfTodayIst();
+  const in30 = endOfDayIst(addDays(start, 30));
   const kpis = await getMentorKpis();
 
-  const [invoices, bills, batches, production, wasteMoves] = await Promise.all([
+  const [invoices, bills, batches, production, wasteMoves, payments] = await Promise.all([
     prisma.invoice.findMany({
-      where: { status: { not: "CANCELLED" } },
+      where: { status: "CONFIRMED" },
       include: { customer: true },
       orderBy: { date: "desc" },
       take: 100,
@@ -36,6 +40,7 @@ export default async function ReportsPage() {
       where: { qtyOnHand: { gt: 0 }, expiryDate: { lte: in30 } },
       include: { item: true },
       orderBy: { expiryDate: "asc" },
+      take: 100,
     }),
     prisma.productionBatch.findMany({
       include: { workOrder: { include: { recipe: { include: { finishedItem: true } } } } },
@@ -47,6 +52,11 @@ export default async function ReportsPage() {
       include: { item: true },
       orderBy: { createdAt: "desc" },
       take: 50,
+    }),
+    prisma.payment.findMany({
+      include: { party: true, allocations: true },
+      orderBy: { date: "desc" },
+      take: 200,
     }),
   ]);
 
@@ -134,6 +144,59 @@ export default async function ReportsPage() {
                           <Badge tone="ok">OK</Badge>
                         )}
                       </Td>
+                    </tr>
+                  ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+
+        <Card className="p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-xl">Payments</h2>
+            <div className="flex gap-2">
+              <LinkButton href={unallocatedOnly ? "/reports" : "/reports?unallocated=1"} variant="secondary">
+                {unallocatedOnly ? "Show all" : "Unallocated only"}
+              </LinkButton>
+              <ExportLink kind="payments" />
+            </div>
+          </div>
+          {payments.filter((p) => {
+            const allocated = p.allocations.reduce((s, a) => s + a.amount, 0);
+            return !unallocatedOnly || p.amount - allocated > 0.05;
+          }).length === 0 ? (
+            <Empty>{unallocatedOnly ? "No unallocated payments." : "No payments."}</Empty>
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Number</Th>
+                  <Th>Party</Th>
+                  <Th>Direction</Th>
+                  <Th>Date</Th>
+                  <Th>Mode</Th>
+                  <Th>Amount</Th>
+                  <Th>Allocated</Th>
+                  <Th>Unallocated</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments
+                  .map((p) => {
+                    const allocated = round2(p.allocations.reduce((s, a) => s + a.amount, 0));
+                    return { p, allocated, open: round2(p.amount - allocated) };
+                  })
+                  .filter((row) => !unallocatedOnly || row.open > 0.05)
+                  .map(({ p, allocated, open }) => (
+                    <tr key={p.id}>
+                      <Td>{p.number}</Td>
+                      <Td>{p.party.name}</Td>
+                      <Td>{p.direction}</Td>
+                      <Td>{formatDate(p.date)}</Td>
+                      <Td>{p.mode}</Td>
+                      <Td>{money(p.amount)}</Td>
+                      <Td>{money(allocated)}</Td>
+                      <Td>{money(open)}</Td>
                     </tr>
                   ))}
               </tbody>

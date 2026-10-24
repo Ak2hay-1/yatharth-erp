@@ -1,6 +1,6 @@
 import type { BatchSource, Prisma, StockMoveType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { round3 } from "@/lib/utils";
+import { qty, round3, startOfTodayIst } from "@/lib/utils";
 
 type Tx = Prisma.TransactionClient;
 
@@ -61,12 +61,20 @@ export async function addStock(
   return batch;
 }
 
+export function availableLotWhere(asOf = startOfTodayIst()) {
+  return {
+    qtyOnHand: { gt: 0 },
+    OR: [{ expiryDate: null }, { expiryDate: { gte: asOf } }],
+  };
+}
+
 export async function pickFefo(tx: Tx, itemId: string, qtyNeeded: number): Promise<StockPick[]> {
   const needed = round3(qtyNeeded);
   if (needed <= 0) throw new Error("Quantity must be greater than zero");
+  const asOf = startOfTodayIst();
 
   const batches = await tx.batch.findMany({
-    where: { itemId, qtyOnHand: { gt: 0 } },
+    where: { itemId, ...availableLotWhere(asOf) },
     orderBy: [{ expiryDate: "asc" }, { createdAt: "asc" }],
   });
 
@@ -81,8 +89,22 @@ export async function pickFefo(tx: Tx, itemId: string, qtyNeeded: number): Promi
   }
 
   if (remaining > 0.0005) {
-    const item = await tx.item.findUnique({ where: { id: itemId } });
-    throw new Error(`Insufficient stock for ${item?.name ?? "item"} (short ${remaining})`);
+    const [item, expired] = await Promise.all([
+      tx.item.findUnique({ where: { id: itemId } }),
+      tx.batch.aggregate({
+        where: { itemId, qtyOnHand: { gt: 0 }, expiryDate: { lt: asOf } },
+        _sum: { qtyOnHand: true },
+      }),
+    ]);
+    const name = item?.name ?? "item";
+    const unit = item?.unit;
+    const expiredQty = expired._sum.qtyOnHand ?? 0;
+    if (expiredQty > 0.0005) {
+      throw new Error(
+        `Insufficient stock for ${name} (short ${qty(remaining, unit)}). ${qty(expiredQty, unit)} is in expired lots and is not available.`,
+      );
+    }
+    throw new Error(`Insufficient stock for ${name} (short ${qty(remaining, unit)})`);
   }
   return picks;
 }
@@ -122,12 +144,13 @@ export async function consumeStock(
 }
 
 export async function getOnHand(itemId?: string) {
-  const batches = await prisma.batch.groupBy({
-    by: ["itemId"],
-    where: itemId ? { itemId } : undefined,
-    _sum: { qtyOnHand: true },
+  const batches = await prisma.batch.findMany({
+    where: { ...(itemId ? { itemId } : {}), ...availableLotWhere() },
+    select: { itemId: true, qtyOnHand: true },
   });
-  return Object.fromEntries(batches.map((b) => [b.itemId, b._sum.qtyOnHand ?? 0]));
+  const map: Record<string, number> = {};
+  for (const b of batches) map[b.itemId] = (map[b.itemId] ?? 0) + b.qtyOnHand;
+  return map;
 }
 
 export type StockHint = {
@@ -139,7 +162,7 @@ export type StockHint = {
 
 export async function getStockHints(): Promise<Record<string, StockHint>> {
   const batches = await prisma.batch.findMany({
-    where: { qtyOnHand: { gt: 0 } },
+    where: availableLotWhere(),
     include: { item: true },
     orderBy: [{ expiryDate: "asc" }, { createdAt: "asc" }],
   });

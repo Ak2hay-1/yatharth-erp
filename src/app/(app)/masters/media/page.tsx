@@ -13,14 +13,18 @@ import { PRODUCT_ASSET_KINDS, labelOf } from "@/lib/labels";
 export default async function MediaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ itemId?: string }>;
+  searchParams: Promise<{ itemId?: string; page?: string }>;
 }) {
   const user = await requireRole(OPS);
   const canManage = can(user.role, MANAGEMENT);
   const canDelete = canManage;
-  const { itemId: filterItemId } = await searchParams;
+  const sp = await searchParams;
+  const filterItemId = sp.itemId;
+  const page = Math.max(1, Number(sp.page) || 1);
+  const pageSize = 24;
 
-  const [items, assets] = await Promise.all([
+  const assetWhere = filterItemId ? { itemId: filterItemId } : undefined;
+  const [items, assets, assetCount] = await Promise.all([
     prisma.item.findMany({
       where: { type: "FINISHED", isActive: true },
       orderBy: { name: "asc" },
@@ -36,10 +40,13 @@ export default async function MediaPage({
       },
     }),
     prisma.productAsset.findMany({
-      where: filterItemId ? { itemId: filterItemId } : undefined,
+      where: assetWhere,
       include: { item: { select: { id: true, name: true, sku: true } } },
       orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     }),
+    prisma.productAsset.count({ where: assetWhere }),
   ]);
 
   return (
@@ -141,6 +148,23 @@ export default async function MediaPage({
                 })}
               </ul>
             )}
+            {assetCount > pageSize ? (
+              <div className="mt-4 flex gap-3 text-sm">
+                {page > 1 ? (
+                  <a className="text-saffron" href={`/masters/media?page=${page - 1}${filterItemId ? `&itemId=${filterItemId}` : ""}`}>
+                    Previous
+                  </a>
+                ) : null}
+                <span className="text-muted">
+                  Page {page} of {Math.ceil(assetCount / pageSize)}
+                </span>
+                {page * pageSize < assetCount ? (
+                  <a className="text-saffron" href={`/masters/media?page=${page + 1}${filterItemId ? `&itemId=${filterItemId}` : ""}`}>
+                    Next
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
           </Card>
         </div>
       </div>

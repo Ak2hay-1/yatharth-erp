@@ -13,7 +13,7 @@ import {
 } from "@/server/sales";
 import { getStockHints } from "@/server/stock";
 import { customerOutstanding } from "@/server/credit";
-import { formatDate, money, qty, toInputDate } from "@/lib/utils";
+import { formatDate, money, qty, toInputDate, toInputDateTime } from "@/lib/utils";
 import { labelOf, ORDER_KINDS } from "@/lib/labels";
 import { requireUser } from "@/lib/session";
 import { MANAGEMENT, can } from "@/lib/permissions";
@@ -52,7 +52,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         subtitle={`${inv.customer.name} · ${labelOf(ORDER_KINDS, inv.kind)} · ${formatDate(inv.date)} · ${inv.isInterstate ? "IGST" : "CGST+SGST"}`}
         actions={
           <>
-            <StatusBadge status={inv.status} />
+            <StatusBadge status={inv.status} paid={inv.paid} total={inv.total} />
             {inv.status === "CONFIRMED" ? (
               <>
                 <LinkButton href={`/print/invoice/${inv.id}`} variant="secondary">
@@ -69,6 +69,11 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 <ActionForm action={repeatFromInvoice.bind(null, inv.id)}>
                   <SubmitButton variant="secondary">Repeat as new order</SubmitButton>
                 </ActionForm>
+                {inv.paid <= 0.009 ? (
+                  <ActionForm action={cancelInvoice.bind(null, inv.id)}>
+                    <SubmitButton variant="danger">Void invoice</SubmitButton>
+                  </ActionForm>
+                ) : null}
               </>
             ) : null}
           </>
@@ -180,13 +185,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 <Input
                   name="dispatchedAt"
                   type="datetime-local"
-                  defaultValue={
-                    challan.dispatchedAt
-                      ? new Date(challan.dispatchedAt.getTime() - challan.dispatchedAt.getTimezoneOffset() * 60000)
-                          .toISOString()
-                          .slice(0, 16)
-                      : `${toInputDate()}T09:00`
-                  }
+                  defaultValue={challan.dispatchedAt ? toInputDateTime(challan.dispatchedAt) : `${toInputDate()}T09:00`}
                 />
               </Field>
               <label className="flex items-center gap-2 text-sm">

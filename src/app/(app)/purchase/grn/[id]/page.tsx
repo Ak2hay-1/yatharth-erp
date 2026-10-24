@@ -10,7 +10,7 @@ import {
   createSupplierBill,
   updateGoodsReceipt,
 } from "@/server/purchase";
-import { formatDate, qty, toInputDate } from "@/lib/utils";
+import { formatDate, money, qty, toInputDate } from "@/lib/utils";
 
 export default async function GrnDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -46,7 +46,7 @@ export default async function GrnDetailPage({ params }: { params: Promise<{ id: 
                 initial={grn.lines.map((l) => ({
                   itemId: l.itemId,
                   qty: String(l.qty),
-                  rate: "0",
+                  rate: String(l.rate),
                   lotNo: l.lotNo,
                   mfgDate: l.mfgDate ? toInputDate(l.mfgDate) : "",
                   expiryDate: l.expiryDate ? toInputDate(l.expiryDate) : "",
@@ -69,6 +69,7 @@ export default async function GrnDetailPage({ params }: { params: Promise<{ id: 
               <tr>
                 <Th>Item</Th>
                 <Th>Qty</Th>
+                <Th>Rate</Th>
                 <Th>Lot</Th>
                 <Th>Mfg</Th>
                 <Th>Expiry</Th>
@@ -79,6 +80,7 @@ export default async function GrnDetailPage({ params }: { params: Promise<{ id: 
                 <tr key={l.id}>
                   <Td>{l.item.name}</Td>
                   <Td>{qty(l.qty, l.item.unit)}</Td>
+                  <Td>{money(l.rate)}</Td>
                   <Td>{l.lotNo}</Td>
                   <Td>{formatDate(l.mfgDate)}</Td>
                   <Td>{formatDate(l.expiryDate)}</Td>
@@ -87,7 +89,14 @@ export default async function GrnDetailPage({ params }: { params: Promise<{ id: 
             </tbody>
           </Table>
         )}
-        {grn.status === "CONFIRMED" && grn.bills.length === 0 ? (
+        {grn.status === "CONFIRMED" && grn.bills.filter((b) => b.status !== "CANCELLED").length === 0 ? (
+          <div className="mt-4">
+            <ActionForm action={cancelGoodsReceipt.bind(null, grn.id)}>
+              <SubmitButton variant="danger">Void GRN</SubmitButton>
+            </ActionForm>
+          </div>
+        ) : null}
+        {grn.status === "CONFIRMED" && grn.bills.filter((b) => b.status !== "CANCELLED").length === 0 ? (
           <ActionForm action={createSupplierBill} className="mt-6 flex max-w-sm items-end gap-3">
             <input type="hidden" name="grnId" value={grn.id} />
             <Field label="Bill date">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ItemType } from "@prisma/client";
 import { Plus, Trash2 } from "lucide-react";
 import { Button, Input } from "@/components/ui";
@@ -50,6 +50,16 @@ export function LineEditor({
 }) {
   const [rows, setRows] = useState<LineRow[]>(initial?.length ? initial : [emptyRow()]);
   const [catalog, setCatalog] = useState(items);
+  const [submitted, setSubmitted] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const form = root.current?.closest("form");
+    if (!form) return;
+    const onSubmit = () => setSubmitted(true);
+    form.addEventListener("submit", onSubmit);
+    return () => form.removeEventListener("submit", onSubmit);
+  }, []);
 
   const byId = useMemo(() => Object.fromEntries(catalog.map((i) => [i.id, i])), [catalog]);
   const recipeMode = unitMode === "recipe";
@@ -62,7 +72,7 @@ export function LineEditor({
     const item = byId[itemId] ?? catalog.find((c) => c.id === itemId);
     const patch: Partial<LineRow> = {
       itemId,
-      rate: item ? String(item[rateField] || "") : "",
+      rate: item && item[rateField] != null ? String(item[rateField]) : "",
     };
     if (recipeMode && item) {
       const allowed = entryUnitsFor(item.unit);
@@ -81,7 +91,11 @@ export function LineEditor({
   }
 
   return (
-    <div className="space-y-3">
+    <div
+      ref={root}
+      className="space-y-3"
+      data-empty-required={rows.every((row) => !row.itemId) ? "true" : undefined}
+    >
       <input type="hidden" name={name} value={JSON.stringify(rows)} />
       <div className="overflow-x-auto rounded-lg border border-line">
         <table className="w-full min-w-[720px] text-sm">
@@ -121,6 +135,7 @@ export function LineEditor({
                       canCreate={canCreate}
                       defaultType={defaultType}
                     />
+                    {submitted && !row.itemId ? <p className="mt-1 text-xs text-bad">Required</p> : null}
                     {item ? (
                       <div className="mt-1 text-xs text-muted">
                         {item.unit} · GST {item.gstRate}%

@@ -28,6 +28,7 @@ export default async function SalesOrderDetailPage({ params }: { params: Promise
   });
   if (!so) notFound();
   const isSample = so.kind === "SAMPLE" || so.kind === "TRIAL";
+  const openInvoices = so.invoices.filter((i) => i.status !== "CANCELLED");
 
   const [customers, items, stockHints] =
     so.status === "DRAFT"
@@ -139,10 +140,15 @@ export default async function SalesOrderDetailPage({ params }: { params: Promise
               <p className="mt-3 text-sm text-muted">Promised delivery: {formatDate(so.promisedDate)}</p>
             ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
-              {so.status === "CONFIRMED" && so.invoices.length === 0 ? (
-                <ActionForm action={createInvoiceFromOrder.bind(null, so.id)}>
-                  <SubmitButton>{isSample ? "Issue sample (GST doc)" : "Create GST invoice"}</SubmitButton>
-                </ActionForm>
+              {so.status === "CONFIRMED" && openInvoices.length === 0 ? (
+                <>
+                  <ActionForm action={createInvoiceFromOrder.bind(null, so.id)}>
+                    <SubmitButton>{isSample ? "Issue sample (GST doc)" : "Create GST invoice"}</SubmitButton>
+                  </ActionForm>
+                  <ActionForm action={cancelSalesOrder.bind(null, so.id)}>
+                    <SubmitButton variant="danger">Cancel order</SubmitButton>
+                  </ActionForm>
+                </>
               ) : null}
               {so.invoices.map((inv) => (
                 <LinkButton key={inv.id} href={`/sales/invoices/${inv.id}`} variant="secondary">

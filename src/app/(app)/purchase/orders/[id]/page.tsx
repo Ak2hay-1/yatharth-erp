@@ -51,7 +51,12 @@ export default async function PODetailPage({ params }: { params: Promise<{ id: s
           <>
             <StatusBadge status={po.status} />
             {po.status === "CONFIRMED" ? (
-              <LinkButton href={`/purchase/grn/new?poId=${po.id}`}>Create GRN</LinkButton>
+              <>
+                <LinkButton href={`/purchase/grn/new?poId=${po.id}`}>Create GRN</LinkButton>
+                <ActionForm action={cancelPurchaseOrder.bind(null, po.id)}>
+                  <SubmitButton variant="danger">Cancel PO</SubmitButton>
+                </ActionForm>
+              </>
             ) : null}
           </>
         }

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, Table, Td, Th, Empty, Badge } from "@/components/ui";
 import { ListFilters } from "@/components/list-filters";
 import { parseListQuery } from "@/lib/filters";
-import { addDays, formatDate, qty } from "@/lib/utils";
+import { addDays, endOfDayIst, formatDate, qty, startOfTodayIst } from "@/lib/utils";
 
 export default async function BatchesPage({
   searchParams,
@@ -10,8 +10,7 @@ export default async function BatchesPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { q } = parseListQuery(await searchParams);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = startOfTodayIst();
   const batches = await prisma.batch.findMany({
     where: {
       qtyOnHand: { gt: 0 },
@@ -24,14 +23,19 @@ export default async function BatchesPage({
     include: { item: true },
     orderBy: [{ expiryDate: "asc" }, { item: { name: "asc" } }],
   });
-  const in7 = addDays(today, 7);
+  const in7 = endOfDayIst(addDays(today, 7));
+  const expiredLots = batches.filter((b) => b.expiryDate && b.expiryDate < today);
+  const expiredQty = expiredLots.reduce((s, b) => s + b.qtyOnHand, 0);
   return (
     <div>
-      <PageHeader title="Batches" subtitle="FEFO picking uses earliest expiry first." />
+      <PageHeader
+        title="Batches"
+        subtitle={`FEFO skips expired lots. Expired on hand: ${qty(expiredQty)} across ${expiredLots.length} lots.`}
+      />
       <Card className="p-2">
         <ListFilters q={q} placeholder="Lot, SKU or item name" />
         {batches.length === 0 ? (
-          <Empty>No lots match. Confirm a GRN or production batch.</Empty>
+          <Empty>{q ? `No lots match “${q}”.` : "No lots yet. Confirm a GRN or production batch."}</Empty>
         ) : (
           <Table>
             <thead>

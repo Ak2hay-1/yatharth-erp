@@ -1,4 +1,4 @@
-import { Card, Field, Input, PageHeader } from "@/components/ui";
+import { Card, Field, Input, LinkButton, PageHeader } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { ActionForm } from "@/components/action-form";
 import { NamedSearch } from "@/components/named-search";
@@ -16,7 +16,7 @@ export default async function NewWorkOrderPage() {
   });
   return (
     <div>
-      <PageHeader title="New work order" />
+      <PageHeader title="New work order" actions={<LinkButton href="/production/orders" variant="secondary">Cancel</LinkButton>} />
       <Card className="max-w-xl p-6">
         <ActionForm action={createWorkOrder} className="space-y-4">
           <Field label="Recipe">

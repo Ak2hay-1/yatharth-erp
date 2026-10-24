@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { FINANCE } from "@/lib/permissions";
 import { Card, PageHeader, Table, Td, Th, StatusBadge, LinkButton } from "@/components/ui";
+import { SubmitButton } from "@/components/submit-button";
+import { ActionForm } from "@/components/action-form";
+import { cancelSupplierBill } from "@/server/purchase";
 import { formatDate, money, qty } from "@/lib/utils";
 
 export default async function BillDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,10 +23,17 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
         subtitle={`${bill.supplier.name} · ${formatDate(bill.date)}`}
         actions={
           <>
-            <StatusBadge status={bill.status} />
-            <LinkButton href={`/payments/new?direction=OUT&partyId=${bill.supplierId}`} variant="secondary">
-              Record payment
-            </LinkButton>
+            <StatusBadge status={bill.status} paid={bill.paid} total={bill.total} />
+            {bill.status !== "CANCELLED" && bill.paid <= 0.009 ? (
+              <ActionForm action={cancelSupplierBill.bind(null, bill.id)}>
+                <SubmitButton variant="danger">Cancel bill</SubmitButton>
+              </ActionForm>
+            ) : null}
+            {bill.status === "CONFIRMED" && bill.total - bill.paid > 0.009 ? (
+              <LinkButton href={`/payments/new?direction=OUT&partyId=${bill.supplierId}`} variant="secondary">
+                Record payment
+              </LinkButton>
+            ) : null}
           </>
         }
       />

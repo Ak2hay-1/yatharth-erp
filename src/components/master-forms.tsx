@@ -12,7 +12,7 @@ export function RecipeForm({
   items,
   recipe,
 }: {
-  action: (formData: FormData) => void | Promise<void>;
+  action: (formData: FormData) => Promise<unknown> | void;
   items: CatalogItem[];
   recipe?: Recipe & { lines: RecipeLine[] };
 }) {

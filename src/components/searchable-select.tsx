@@ -28,9 +28,18 @@ export function SearchableSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [submitted, setSubmitted] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const listId = useId();
   const selected = options.find((o) => o.id === value);
+
+  useEffect(() => {
+    const form = root.current?.closest("form");
+    if (!form) return;
+    const onSubmit = () => setSubmitted(true);
+    form.addEventListener("submit", onSubmit);
+    return () => form.removeEventListener("submit", onSubmit);
+  }, []);
   const canCreate = Boolean(onRequestCreate && createLabel);
 
   const filtered = useMemo(() => {
@@ -56,8 +65,8 @@ export function SearchableSelect({
   }
 
   return (
-    <div ref={root} className="relative">
-      {name ? <input type="hidden" name={name} value={value} required={required && !value} /> : null}
+    <div ref={root} className="relative" data-empty-required={required && !value ? "true" : undefined}>
+      {name ? <input type="hidden" name={name} value={value} /> : null}
       <input
         className={cn(
           "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-saffron focus:ring-2 focus:ring-saffron/20",
@@ -133,6 +142,8 @@ export function SearchableSelect({
           ) : null}
         </ul>
       ) : null}
+      {required && submitted && !value ? <p className="mt-1 text-xs text-bad">Required</p> : null}
+      {value && !selected ? <p className="mt-1 text-xs text-muted">Not in the list</p> : null}
     </div>
   );
 }

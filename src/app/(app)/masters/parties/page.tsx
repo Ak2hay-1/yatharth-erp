@@ -38,7 +38,7 @@ export default async function PartiesPage({
       <Card className="p-2">
         <ListFilters q={q} placeholder="Name, GSTIN, phone, city" />
         {parties.length === 0 ? (
-          <Empty>No parties match.</Empty>
+          <Empty>{q ? `No parties match “${q}”.` : "No parties yet."}</Empty>
         ) : (
           <Table>
             <thead>

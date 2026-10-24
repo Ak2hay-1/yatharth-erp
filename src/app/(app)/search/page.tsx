@@ -52,11 +52,14 @@ export default async function SearchPage({
       <div className="space-y-4">
         <Card className="p-2">
           <ListFilters q={q} placeholder="Invoice, party, SKU" />
+          {invoices.length === 0 && parties.length === 0 && items.length === 0 ? (
+            <Empty>No invoices, parties, or items match “{q}”.</Empty>
+          ) : null}
         </Card>
         <Card className="p-5">
           <h2 className="font-display mb-3 text-xl">Invoices</h2>
           {invoices.length === 0 ? (
-            <Empty>No invoices.</Empty>
+            <Empty>No invoices match “{q}”.</Empty>
           ) : (
             <Table>
               <thead>
@@ -87,7 +90,7 @@ export default async function SearchPage({
         <Card className="p-5">
           <h2 className="font-display mb-3 text-xl">Parties</h2>
           {parties.length === 0 ? (
-            <Empty>No parties.</Empty>
+            <Empty>No parties match “{q}”.</Empty>
           ) : (
             <Table>
               <thead>
@@ -116,7 +119,7 @@ export default async function SearchPage({
         <Card className="p-5">
           <h2 className="font-display mb-3 text-xl">Items</h2>
           {items.length === 0 ? (
-            <Empty>No items.</Empty>
+            <Empty>No items match “{q}”.</Empty>
           ) : (
             <Table>
               <thead>

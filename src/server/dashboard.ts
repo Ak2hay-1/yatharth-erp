@@ -1,16 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import { addDays } from "@/lib/utils";
+import { addDays, endOfDayIst, startOfTodayIst } from "@/lib/utils";
 
 export async function getDashboard() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  const in7 = addDays(start, 7);
-  const in30 = addDays(start, 30);
+  const start = startOfTodayIst();
+  const end = endOfDayIst(start);
+  const in7 = endOfDayIst(addDays(start, 7));
+  const in30 = endOfDayIst(addDays(start, 30));
 
   const [
     todayInvoices,
+    expiredLots,
+    expiredCount,
     unpaidInvoices,
     unpaidBills,
     todayProduction,
@@ -20,9 +20,18 @@ export async function getDashboard() {
     recentMoves,
   ] = await Promise.all([
     prisma.invoice.aggregate({
-      where: { date: { gte: start, lte: end }, status: { not: "CANCELLED" } },
+      where: { date: { gte: start, lte: end }, status: "CONFIRMED" },
       _sum: { total: true },
       _count: true,
+    }),
+    prisma.batch.findMany({
+      where: { qtyOnHand: { gt: 0 }, expiryDate: { lt: start } },
+      include: { item: true },
+      orderBy: { expiryDate: "asc" },
+      take: 12,
+    }),
+    prisma.batch.count({
+      where: { qtyOnHand: { gt: 0 }, expiryDate: { lt: start } },
     }),
     prisma.invoice.findMany({
       where: { status: "CONFIRMED" },
@@ -75,10 +84,12 @@ export async function getDashboard() {
     .filter((b) => b.due > 0.009);
 
   const low = lowStock
-    .map((item) => ({
-      item,
-      onHand: item.batches.reduce((s, b) => s + b.qtyOnHand, 0),
-    }))
+    .map((item) => {
+      const available = item.batches
+        .filter((b) => b.qtyOnHand > 0 && (!b.expiryDate || b.expiryDate >= start))
+        .reduce((s, b) => s + b.qtyOnHand, 0);
+      return { item, onHand: available };
+    })
     .filter((x) => x.onHand <= x.item.reorderLevel);
 
   return {
@@ -91,6 +102,8 @@ export async function getDashboard() {
     low,
     expiring7,
     expiring30,
+    expired: expiredLots,
+    expiredCount,
     recentMoves,
   };
 }

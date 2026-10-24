@@ -1,4 +1,4 @@
-import { Card, PageHeader } from "@/components/ui";
+import { Card, LinkButton, PageHeader } from "@/components/ui";
 import { PaymentFields } from "@/components/payment-form";
 import { recordPayment } from "@/server/payments";
 import { prisma } from "@/lib/prisma";
@@ -17,7 +17,7 @@ export default async function NewPaymentPage({
 
   if (direction === "IN") {
     const parties = await prisma.party.findMany({
-      where: { kind: { in: ["CUSTOMER", "BOTH"] } },
+      where: { kind: { in: ["CUSTOMER", "BOTH"] }, isActive: true },
       orderBy: { name: "asc" },
     });
     const invoices = await prisma.invoice.findMany({
@@ -40,7 +40,7 @@ export default async function NewPaymentPage({
     }
     return (
       <div>
-        <PageHeader title="Receive payment" />
+        <PageHeader title="Receive payment" actions={<LinkButton href="/payments" variant="secondary">Cancel</LinkButton>} />
         <Card className="p-6">
           <PaymentFields
             action={recordPayment}
@@ -56,7 +56,7 @@ export default async function NewPaymentPage({
   }
 
   const parties = await prisma.party.findMany({
-    where: { kind: { in: ["SUPPLIER", "BOTH"] } },
+    where: { kind: { in: ["SUPPLIER", "BOTH"] }, isActive: true },
     orderBy: { name: "asc" },
   });
   const bills = await prisma.supplierBill.findMany({
@@ -78,7 +78,7 @@ export default async function NewPaymentPage({
   }
   return (
     <div>
-      <PageHeader title="Pay supplier" />
+      <PageHeader title="Pay supplier" actions={<LinkButton href="/payments" variant="secondary">Cancel</LinkButton>} />
       <Card className="p-6">
         <PaymentFields
           action={recordPayment}

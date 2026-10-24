@@ -5,7 +5,7 @@ import { RecipeForm } from "@/components/master-forms";
 import { RecipeScalePreview } from "@/components/recipe-scale-preview";
 import { SubmitButton } from "@/components/submit-button";
 import { ActionForm } from "@/components/action-form";
-import { saveRecipeTranslation, updateRecipe } from "@/server/recipes";
+import { deleteRecipe, saveRecipeTranslation, updateRecipe } from "@/server/recipes";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { MANAGEMENT } from "@/lib/permissions";
@@ -39,13 +39,24 @@ export default async function EditRecipePage({
     },
   });
   if (!recipe) notFound();
-  const items = await prisma.item.findMany({ where: { isActive: true }, orderBy: { name: "asc" } });
+  const activeItems = await prisma.item.findMany({ where: { isActive: true }, orderBy: { name: "asc" } });
+  const missingIds = [
+    recipe.finishedItemId,
+    ...recipe.lines.map((l) => l.itemId),
+  ].filter((id) => !activeItems.some((i) => i.id === id));
+  const extraItems = missingIds.length
+    ? await prisma.item.findMany({ where: { id: { in: missingIds } } })
+    : [];
+  const items = [...activeItems, ...extraItems];
   const translation = recipe.translations.find((t) => t.locale === locale);
   const displayName = locale === "en_IN" ? recipe.name : translation?.name || recipe.name;
   const displayNotes = locale === "en_IN" ? recipe.notes : translation?.notes || "";
   let ingredientOverrides: Record<string, string> = {};
   try {
-    ingredientOverrides = JSON.parse(translation?.ingredientNamesJson || "{}") as Record<string, string>;
+    const parsed = JSON.parse(translation?.ingredientNamesJson || "{}") as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      ingredientOverrides = parsed as Record<string, string>;
+    }
   } catch {
     ingredientOverrides = {};
   }
@@ -58,6 +69,9 @@ export default async function EditRecipePage({
         actions={
           <div className="flex flex-wrap gap-2 no-print">
             <PrintButton label="Print recipe" />
+            <ActionForm action={deleteRecipe.bind(null, recipe.id)}>
+              <SubmitButton variant="danger">Delete recipe</SubmitButton>
+            </ActionForm>
           </div>
         }
       />
@@ -114,7 +128,7 @@ export default async function EditRecipePage({
           outputQty={recipe.outputQty}
           outputUnit={recipe.finishedItem.unit}
           lines={recipe.lines.map((l) => ({
-            name: ingredientOverrides[l.itemId] || l.item.name,
+            name: (ingredientOverrides[l.itemId] || l.item?.name) ?? "Ingredient",
             unit: l.item.unit,
             qty: l.qty,
           }))}

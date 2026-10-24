@@ -27,36 +27,58 @@ export async function productionBatchCost(
 }
 
 export async function itemUnitCost(tx: Tx, itemId: string) {
-  const latest = await tx.productionBatch.findFirst({
+  const map = await itemUnitCostMap(tx, [itemId]);
+  return map.get(itemId) ?? 0;
+}
+
+/** One query pass for many finished SKUs. Later batches do not replace an earlier unit cost. */
+export async function itemUnitCostMap(tx: Tx, itemIds: string[]) {
+  const map = new Map<string, number>();
+  if (!itemIds.length) return map;
+  const latest = await tx.productionBatch.findMany({
     where: {
       status: { not: "CANCELLED" },
       unitCost: { gt: 0 },
-      workOrder: { recipe: { finishedItemId: itemId } },
+      workOrder: { recipe: { finishedItemId: { in: itemIds } } },
     },
     orderBy: { mfgDate: "desc" },
+    include: { workOrder: { select: { recipe: { select: { finishedItemId: true } } } } },
   });
-  if (latest) return latest.unitCost;
-
-  const recipe = await tx.recipe.findUnique({ where: { finishedItemId: itemId } });
-  if (recipe) return recipeUnitCost(tx, recipe.id);
-
-  const item = await tx.item.findUnique({ where: { id: itemId } });
-  return item?.purchasePrice ?? 0;
+  for (const row of latest) {
+    const id = row.workOrder.recipe.finishedItemId;
+    if (!map.has(id)) map.set(id, row.unitCost);
+  }
+  const missing = itemIds.filter((id) => !map.has(id));
+  if (missing.length) {
+    const recipes = await tx.recipe.findMany({
+      where: { finishedItemId: { in: missing } },
+      include: { lines: { include: { item: true } } },
+    });
+    for (const recipe of recipes) {
+      if (recipe.outputQty <= 0) {
+        map.set(recipe.finishedItemId, 0);
+        continue;
+      }
+      const total = recipe.lines.reduce((s, l) => s + l.qty * l.item.purchasePrice, 0);
+      map.set(recipe.finishedItemId, total / recipe.outputQty);
+    }
+  }
+  const still = itemIds.filter((id) => !map.has(id));
+  if (still.length) {
+    const items = await tx.item.findMany({ where: { id: { in: still } }, select: { id: true, purchasePrice: true } });
+    for (const item of items) map.set(item.id, item.purchasePrice ?? 0);
+  }
+  return map;
 }
 
 export async function contributionForLines(
   tx: Tx,
   lines: { itemId: string; qty: number; taxable: number }[],
 ) {
+  const costs = await itemUnitCostMap(tx, [...new Set(lines.map((l) => l.itemId))]);
   let cost = 0;
-  const byItem = new Map<string, number>();
   for (const line of lines) {
-    let unit = byItem.get(line.itemId);
-    if (unit === undefined) {
-      unit = await itemUnitCost(tx, line.itemId);
-      byItem.set(line.itemId, unit);
-    }
-    cost += line.qty * unit;
+    cost += line.qty * (costs.get(line.itemId) ?? 0);
   }
   const revenue = lines.reduce((s, l) => s + l.taxable, 0);
   const contribution = revenue - cost;

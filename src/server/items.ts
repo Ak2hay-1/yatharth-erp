@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/session";
 import { MANAGEMENT } from "@/lib/permissions";
 import { parseNum, requiredString } from "@/lib/utils";
 import { enqueueWebsiteSync } from "@/lib/website-sync";
+import { runAction } from "@/lib/run-action";
 
 function itemData(formData: FormData) {
   return {
@@ -33,21 +34,24 @@ function itemData(formData: FormData) {
     gateShelfLife: formData.get("gateShelfLife") === "on",
     gateAcceptance: formData.get("gateAcceptance") === "on",
     gateRepeat: formData.get("gateRepeat") === "on",
-    isActive: formData.get("isActive") !== "false",
+    isActive: formData.get("activeFlag") === "1" ? formData.get("isActive") === "true" : true,
   };
 }
 
 export async function createItem(formData: FormData) {
+  return runAction(async () => {
   await requireRole(MANAGEMENT);
   const data = itemData(formData);
   await prisma.item.create({ data });
   if (data.type === "FINISHED") void enqueueWebsiteSync("products");
   revalidatePath("/masters/items");
   redirect("/masters/items");
+  });
 }
 
 /** Create an item and return it (for inline creatable pickers). Does not redirect. */
 export async function createItemQuick(formData: FormData) {
+  return runAction(async () => {
   await requireRole(MANAGEMENT);
   const data = itemData(formData);
   const item = await prisma.item.create({ data });
@@ -63,9 +67,11 @@ export async function createItemQuick(formData: FormData) {
     gstRate: item.gstRate,
     type: item.type,
   };
+  });
 }
 
 export async function updateItem(id: string, formData: FormData) {
+  return runAction(async () => {
   await requireRole(MANAGEMENT);
   const data = itemData(formData);
   await prisma.item.update({ where: { id }, data });
@@ -75,6 +81,17 @@ export async function updateItem(id: string, formData: FormData) {
   }
   revalidatePath("/masters/items");
   redirect("/masters/items");
+  });
+}
+
+export async function setItemActive(id: string, active: boolean) {
+  return runAction(async () => {
+    await requireRole(MANAGEMENT);
+    const item = await prisma.item.update({ where: { id }, data: { isActive: active } });
+    if (item.type === "FINISHED") void enqueueWebsiteSync("products");
+    revalidatePath(`/masters/items/${id}`);
+    revalidatePath("/masters/items");
+  });
 }
 
 export async function listItems(type?: ItemType) {

@@ -61,7 +61,7 @@ export default async function InvoicesPage({
                   <Td>{money(r.total)}</Td>
                   <Td>{money(r.total - r.paid)}</Td>
                   <Td>
-                    <StatusBadge status={r.status} />
+                    <StatusBadge status={r.status} paid={r.paid} total={r.total} />
                   </Td>
                   <Td>
                     {r.status === "CONFIRMED" ? (

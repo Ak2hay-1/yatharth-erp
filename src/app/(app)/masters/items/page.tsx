@@ -37,7 +37,7 @@ export default async function ItemsPage({
       <Card className="p-2">
         <ListFilters q={q} placeholder="SKU, name or HSN" />
         {items.length === 0 ? (
-          <Empty>No items match.</Empty>
+          <Empty>{q ? `No items match “${q}”.` : "No items yet."}</Empty>
         ) : (
           <Table>
             <thead>

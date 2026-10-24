@@ -78,7 +78,7 @@ export function GrnForm({
       </div>
       <LineEditor key={poId} items={items} initial={initial} rateField="purchasePrice" showLot canCreate={false} />
       <p className="text-xs text-muted">
-        Qty defaults to what is still open on the PO. Confirming a partial GRN leaves the PO open.
+        Qty defaults to what is still open on the PO. Receiving more than that remaining qty is blocked.
       </p>
       <SubmitButton>Save draft GRN</SubmitButton>
     </ActionForm>

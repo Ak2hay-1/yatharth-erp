@@ -2,12 +2,15 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { FINANCE } from "@/lib/permissions";
 import { Card, PageHeader, Table, Td, Th, LinkButton, Empty, Badge } from "@/components/ui";
+import { SubmitButton } from "@/components/submit-button";
+import { ActionForm } from "@/components/action-form";
+import { voidPayment } from "@/server/payments";
 import { formatDate, money } from "@/lib/utils";
 
 export default async function PaymentsPage() {
   await requireRole(FINANCE);
   const rows = await prisma.payment.findMany({
-    include: { party: true },
+    include: { party: true, allocations: true },
     orderBy: { createdAt: "desc" },
   });
   return (
@@ -37,6 +40,8 @@ export default async function PaymentsPage() {
                 <Th>Date</Th>
                 <Th>Mode</Th>
                 <Th>Amount</Th>
+                <Th>Unallocated</Th>
+                <Th />
               </tr>
             </thead>
             <tbody>
@@ -50,6 +55,12 @@ export default async function PaymentsPage() {
                   <Td>{formatDate(r.date)}</Td>
                   <Td>{r.mode}</Td>
                   <Td>{money(r.amount)}</Td>
+                  <Td>{money(r.amount - r.allocations.reduce((s, a) => s + a.amount, 0))}</Td>
+                  <Td>
+                    <ActionForm action={voidPayment.bind(null, r.id)}>
+                      <SubmitButton variant="danger">Void</SubmitButton>
+                    </ActionForm>
+                  </Td>
                 </tr>
               ))}
             </tbody>

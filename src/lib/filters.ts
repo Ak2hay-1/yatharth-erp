@@ -1,3 +1,5 @@
+import { parseCalendarDate } from "@/lib/utils";
+
 export type ListQuery = {
   q: string;
   status: string;
@@ -17,8 +19,15 @@ export function parseListQuery(sp: { q?: string; status?: string; from?: string;
 export function dateRange(from?: string, to?: string) {
   if (!from && !to) return undefined;
   const range: { gte?: Date; lte?: Date } = {};
-  if (from) range.gte = new Date(`${from}T00:00:00`);
-  if (to) range.lte = new Date(`${to}T23:59:59.999`);
+  if (from) {
+    const start = parseCalendarDate(from);
+    if (start) range.gte = start;
+  }
+  if (to) {
+    const start = parseCalendarDate(to);
+    if (start) range.lte = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+  }
+  if (!range.gte && !range.lte) return undefined;
   return range;
 }
 

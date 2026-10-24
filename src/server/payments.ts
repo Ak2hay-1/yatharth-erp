@@ -6,10 +6,12 @@ import type { PaymentDirection, PaymentMode } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { FINANCE } from "@/lib/permissions";
-import { parseNum, requiredString, round2 } from "@/lib/utils";
+import { parseNum, requireCalendarDate, requiredString, round2 } from "@/lib/utils";
 import { nextNumberTx } from "@/server/numbers";
+import { runAction } from "@/lib/run-action";
 
 export async function recordPayment(formData: FormData) {
+  return runAction(async () => {
   await requireRole(FINANCE);
   const direction = requiredString(formData.get("direction"), "Direction") as PaymentDirection;
   const partyId = requiredString(formData.get("partyId"), "Party");
@@ -34,7 +36,7 @@ export async function recordPayment(formData: FormData) {
         direction,
         partyId,
         amount,
-        date: new Date(requiredString(formData.get("date"), "Date")),
+        date: requireCalendarDate(requiredString(formData.get("date"), "Date"), "Date"),
         mode: requiredString(formData.get("mode"), "Mode") as PaymentMode,
         reference: String(formData.get("reference") ?? ""),
         notes: String(formData.get("notes") ?? ""),
@@ -72,4 +74,37 @@ export async function recordPayment(formData: FormData) {
 
   revalidatePath("/payments");
   redirect("/payments?saved=1");
+  });
+}
+
+export async function voidPayment(id: string) {
+  return runAction(async () => {
+    await requireRole(FINANCE);
+    await prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { id },
+        include: { allocations: true },
+      });
+      if (!payment) throw new Error("Payment not found");
+      for (const alloc of payment.allocations) {
+        if (alloc.invoiceId) {
+          await tx.invoice.update({
+            where: { id: alloc.invoiceId },
+            data: { paid: { decrement: alloc.amount } },
+          });
+        }
+        if (alloc.supplierBillId) {
+          await tx.supplierBill.update({
+            where: { id: alloc.supplierBillId },
+            data: { paid: { decrement: alloc.amount } },
+          });
+        }
+      }
+      await tx.payment.delete({ where: { id } });
+    });
+    revalidatePath("/payments");
+    revalidatePath("/purchase/bills");
+    revalidatePath("/sales/invoices");
+    revalidatePath("/dashboard");
+  });
 }

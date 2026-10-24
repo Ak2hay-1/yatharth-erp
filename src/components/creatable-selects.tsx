@@ -7,6 +7,7 @@ import { ItemForm, PartyForm } from "@/components/item-party-forms";
 import { SearchableSelect, type SearchOption } from "@/components/searchable-select";
 import type { CatalogItem } from "@/components/catalog-types";
 import { createItemQuick } from "@/server/items";
+import { isActionError } from "@/lib/run-action";
 import { createPartyQuick } from "@/server/parties";
 
 export type { CatalogItem };
@@ -71,6 +72,7 @@ export function CreatableItemSelect({
 
   async function handleCreate(formData: FormData) {
     const created = await createItemQuick(formData);
+    if (isActionError(created)) return created;
     const next: CatalogItem = {
       id: created.id,
       sku: created.sku,
@@ -155,6 +157,7 @@ export function CreatablePartySelect({
 
   async function handleCreate(formData: FormData) {
     const created = await createPartyQuick(formData);
+    if (isActionError(created)) return created;
     const opt = partyOption(created);
     setOptions((prev) => (prev.some((o) => o.id === opt.id) ? prev : [...prev, opt]));
     onChange(created.id);

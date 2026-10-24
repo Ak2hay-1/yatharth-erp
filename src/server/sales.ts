@@ -6,11 +6,22 @@ import type { CustomerChannel, Prisma, SalesOrderKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { OPS } from "@/lib/permissions";
-import { addDays, requiredString } from "@/lib/utils";
+import { addDays, parseCalendarDateTime, requireCalendarDate, requiredString, startOfTodayIst } from "@/lib/utils";
 import { isInterstate, sumTax, taxLine } from "@/lib/gst";
 import { nextNumberTx } from "@/server/numbers";
-import { consumeStock } from "@/server/stock";
+import { consumeStock, pickFefo } from "@/server/stock";
 import { assertCreditOk } from "@/server/credit";
+import { runAction } from "@/lib/run-action";
+
+function formDate(formData: FormData, key: string, label: string) {
+  return requireCalendarDate(requiredString(formData.get(key), label), label);
+}
+
+function formDateOptional(raw: string, label: string) {
+  const value = raw.trim();
+  if (!value) return null;
+  return requireCalendarDate(value, label);
+}
 
 type Line = { itemId: string; qty: number; rate: number };
 
@@ -36,6 +47,7 @@ async function markCustomerOrdered(tx: Prisma.TransactionClient, customerId: str
 }
 
 export async function createSalesOrder(formData: FormData) {
+  return runAction(async () => {
   await requireRole(OPS);
   const customerId = requiredString(formData.get("customerId"), "Customer");
   const customer = await prisma.party.findUnique({ where: { id: customerId } });
@@ -53,8 +65,8 @@ export async function createSalesOrder(formData: FormData) {
         customerId,
         channel,
         kind,
-        date: new Date(requiredString(formData.get("date"), "Date")),
-        promisedDate: promisedRaw ? new Date(promisedRaw) : null,
+        date: formDate(formData, "date", "Date"),
+        promisedDate: formDateOptional(promisedRaw, "Promised date"),
         notes: String(formData.get("notes") ?? ""),
         lines: {
           create: lines.map((l) => ({ itemId: l.itemId, qty: l.qty, rate: l.rate })),
@@ -65,17 +77,36 @@ export async function createSalesOrder(formData: FormData) {
   revalidatePath("/sales/orders");
   revalidatePath("/sales/samples");
   redirect(`/sales/orders/${so.id}`);
+  });
 }
 
 export async function confirmSalesOrder(id: string) {
+  return runAction(async () => {
   await requireRole(OPS);
   const so = await prisma.salesOrder.findUnique({ where: { id }, include: { lines: true } });
   if (!so || so.status !== "DRAFT") throw new Error("Only draft orders can be confirmed");
-  await prisma.salesOrder.update({ where: { id }, data: { status: "CONFIRMED" } });
+  await prisma.$transaction(async (tx) => {
+    const byItem = new Map<string, number>();
+    for (const line of so.lines) byItem.set(line.itemId, (byItem.get(line.itemId) ?? 0) + line.qty);
+    for (const [itemId, qty] of byItem) await pickFefo(tx, itemId, qty);
+    if (so.kind === "COMMERCIAL") {
+      const extra = await invoiceLineTotal(
+        tx,
+        so.lines.map((l) => ({ itemId: l.itemId, qty: l.qty, rate: l.rate })),
+        so.customerId,
+      );
+      await assertCreditOk(tx, so.customerId, extra);
+    }
+    await tx.salesOrder.update({ where: { id }, data: { status: "CONFIRMED" } });
+  });
   revalidatePath(`/sales/orders/${id}`);
+  revalidatePath("/sales/orders");
+  revalidatePath("/dashboard");
+  });
 }
 
 export async function saveTrialFeedback(id: string, formData: FormData) {
+  return runAction(async () => {
   await requireRole(OPS);
   await prisma.salesOrder.update({
     where: { id },
@@ -92,6 +123,7 @@ export async function saveTrialFeedback(id: string, formData: FormData) {
   revalidatePath(`/sales/orders/${id}`);
   revalidatePath("/sales/samples");
   revalidatePath("/dashboard");
+  });
 }
 
 async function invoiceLineTotal(tx: Prisma.TransactionClient, lines: Line[], customerId: string) {
@@ -246,6 +278,7 @@ async function buildInvoiceFromLines(
 }
 
 export async function createInvoiceFromOrder(id: string) {
+  return runAction(async () => {
   await requireRole(OPS);
   const so = await prisma.salesOrder.findUnique({
     where: { id },
@@ -254,7 +287,9 @@ export async function createInvoiceFromOrder(id: string) {
   if (!so || (so.status !== "CONFIRMED" && so.status !== "COMPLETED")) {
     throw new Error("Confirm the sales order first");
   }
-  const existing = await prisma.invoice.findFirst({ where: { salesOrderId: id } });
+  const existing = await prisma.invoice.findFirst({
+    where: { salesOrderId: id, status: { not: "CANCELLED" } },
+  });
   if (existing) redirect(`/sales/invoices/${existing.id}`);
 
   const invoice = await prisma.$transaction(async (tx) =>
@@ -262,7 +297,7 @@ export async function createInvoiceFromOrder(id: string) {
       customerId: so.customerId,
       channel: so.channel,
       kind: so.kind,
-      date: new Date(),
+      date: startOfTodayIst(),
       promisedDate: so.promisedDate,
       salesOrderId: so.id,
       notes: so.notes,
@@ -272,9 +307,11 @@ export async function createInvoiceFromOrder(id: string) {
   );
   revalidatePath("/sales/invoices");
   redirect(`/sales/invoices/${invoice.id}`);
+  });
 }
 
 export async function confirmInvoice(id: string) {
+  return runAction(async () => {
   await requireRole(OPS);
   await prisma.$transaction(async (tx) => {
     const invoice = await tx.invoice.findUnique({
@@ -363,9 +400,11 @@ export async function confirmInvoice(id: string) {
   revalidatePath(`/sales/invoices/${id}`);
   revalidatePath("/inventory/stock");
   revalidatePath("/dashboard");
+  });
 }
 
 export async function createCounterSale(formData: FormData) {
+  return runAction(async () => {
   await requireRole(OPS);
   const customerId = requiredString(formData.get("customerId"), "Customer");
   const customer = await prisma.party.findUnique({ where: { id: customerId } });
@@ -377,7 +416,7 @@ export async function createCounterSale(formData: FormData) {
       customerId,
       channel: "B2C",
       kind: "COMMERCIAL",
-      date: new Date(requiredString(formData.get("date"), "Date")),
+      date: formDate(formData, "date", "Date"),
       notes: String(formData.get("notes") ?? ""),
       lines,
       confirm: true,
@@ -385,9 +424,11 @@ export async function createCounterSale(formData: FormData) {
   );
   revalidatePath("/sales/invoices");
   redirect(`/print/invoice/${invoice.id}`);
+  });
 }
 
 export async function updateSalesOrder(id: string, formData: FormData) {
+  return runAction(async () => {
   await requireRole(OPS);
   const so = await prisma.salesOrder.findUnique({ where: { id } });
   if (!so || so.status !== "DRAFT") throw new Error("Only draft orders can be edited");
@@ -406,8 +447,8 @@ export async function updateSalesOrder(id: string, formData: FormData) {
         customerId,
         channel,
         kind,
-        date: new Date(requiredString(formData.get("date"), "Date")),
-        promisedDate: promisedRaw ? new Date(promisedRaw) : null,
+        date: formDate(formData, "date", "Date"),
+        promisedDate: formDateOptional(promisedRaw, "Promised date"),
         notes: String(formData.get("notes") ?? ""),
         lines: { create: lines.map((l) => ({ itemId: l.itemId, qty: l.qty, rate: l.rate })) },
       },
@@ -415,18 +456,31 @@ export async function updateSalesOrder(id: string, formData: FormData) {
   ]);
   revalidatePath(`/sales/orders/${id}`);
   revalidatePath("/sales/orders");
+  });
 }
 
 export async function cancelSalesOrder(id: string) {
+  return runAction(async () => {
   await requireRole(OPS);
   const so = await prisma.salesOrder.findUnique({ where: { id } });
-  if (!so || so.status !== "DRAFT") throw new Error("Only draft orders can be cancelled");
+  if (!so || (so.status !== "DRAFT" && so.status !== "CONFIRMED")) {
+    throw new Error("Only draft or confirmed orders with no invoice can be cancelled");
+  }
+  if (so.status === "CONFIRMED") {
+    const live = await prisma.invoice.count({
+      where: { salesOrderId: id, status: { not: "CANCELLED" } },
+    });
+    if (live > 0) throw new Error("Cancel the invoice before cancelling this order");
+  }
   await prisma.salesOrder.update({ where: { id }, data: { status: "CANCELLED" } });
   revalidatePath(`/sales/orders/${id}`);
   revalidatePath("/sales/orders");
+  revalidatePath("/dashboard");
+  });
 }
 
 export async function updateDraftInvoice(id: string, formData: FormData) {
+  return runAction(async () => {
   await requireRole(OPS);
   const invoice = await prisma.invoice.findUnique({ where: { id } });
   if (!invoice || invoice.status !== "DRAFT") throw new Error("Only draft invoices can be edited");
@@ -472,18 +526,58 @@ export async function updateDraftInvoice(id: string, formData: FormData) {
     });
   });
   revalidatePath(`/sales/invoices/${id}`);
+  });
 }
 
 export async function cancelInvoice(id: string) {
+  return runAction(async () => {
   await requireRole(OPS);
-  const invoice = await prisma.invoice.findUnique({ where: { id } });
-  if (!invoice || invoice.status !== "DRAFT") throw new Error("Only draft invoices can be cancelled");
-  await prisma.invoice.update({ where: { id }, data: { status: "CANCELLED" } });
+  await prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.findUnique({
+      where: { id },
+      include: { lines: true },
+    });
+    if (!invoice || (invoice.status !== "DRAFT" && invoice.status !== "CONFIRMED")) {
+      throw new Error("This invoice cannot be cancelled");
+    }
+    if (invoice.status === "CONFIRMED") {
+      if (invoice.paid > 0.009) throw new Error("Void the payment before cancelling this invoice");
+      for (const line of invoice.lines) {
+        if (!line.batchId) continue;
+        await tx.batch.update({
+          where: { id: line.batchId },
+          data: { qtyOnHand: { increment: line.qty } },
+        });
+        await tx.stockMove.create({
+          data: {
+            itemId: line.itemId,
+            batchId: line.batchId,
+            type: "ADJUST",
+            qty: line.qty,
+            refType: "INVOICE",
+            refId: invoice.id,
+            notes: `Void ${invoice.number}`,
+          },
+        });
+      }
+      if (invoice.salesOrderId) {
+        const so = await tx.salesOrder.findUnique({ where: { id: invoice.salesOrderId } });
+        if (so?.status === "COMPLETED") {
+          await tx.salesOrder.update({ where: { id: so.id }, data: { status: "CONFIRMED" } });
+        }
+      }
+    }
+    await tx.invoice.update({ where: { id }, data: { status: "CANCELLED" } });
+  });
   revalidatePath(`/sales/invoices/${id}`);
   revalidatePath("/sales/invoices");
+  revalidatePath("/inventory/stock");
+  revalidatePath("/dashboard");
+  });
 }
 
 export async function repeatLastOrder(customerId: string) {
+  return runAction(async () => {
   await requireRole(OPS);
   const last = await prisma.salesOrder.findFirst({
     where: { customerId, kind: "COMMERCIAL", status: { not: "CANCELLED" } },
@@ -499,7 +593,7 @@ export async function repeatLastOrder(customerId: string) {
         customerId,
         channel: last.channel,
         kind: "COMMERCIAL",
-        date: new Date(),
+        date: startOfTodayIst(),
         notes: `Repeat of ${last.number}`,
         lines: {
           create: last.lines.map((l) => ({ itemId: l.itemId, qty: l.qty, rate: l.rate })),
@@ -509,9 +603,11 @@ export async function repeatLastOrder(customerId: string) {
   });
   revalidatePath("/sales/orders");
   redirect(`/sales/orders/${so.id}`);
+  });
 }
 
 export async function repeatFromInvoice(invoiceId: string) {
+  return runAction(async () => {
   await requireRole(OPS);
   const inv = await prisma.invoice.findUnique({
     where: { id: invoiceId },
@@ -532,7 +628,7 @@ export async function repeatFromInvoice(invoiceId: string) {
         customerId: inv.customerId,
         channel: inv.channel,
         kind: "COMMERCIAL",
-        date: new Date(),
+        date: startOfTodayIst(),
         notes: `Repeat of ${inv.number}`,
         lines: {
           create: [...grouped.values()].map((l) => ({ itemId: l.itemId, qty: l.qty, rate: l.rate })),
@@ -542,9 +638,11 @@ export async function repeatFromInvoice(invoiceId: string) {
   });
   revalidatePath("/sales/orders");
   redirect(`/sales/orders/${so.id}`);
+  });
 }
 
 export async function saveDispatchChecklist(id: string, formData: FormData) {
+  return runAction(async () => {
   await requireRole(OPS);
   await prisma.deliveryChallan.update({
     where: { id },
@@ -552,11 +650,20 @@ export async function saveDispatchChecklist(id: string, formData: FormData) {
       vehicleNo: String(formData.get("vehicleNo") ?? ""),
       freezerOk: formData.get("freezerOk") === "on",
       sealOk: formData.get("sealOk") === "on",
-      dispatchedAt: formData.get("dispatchedAt") ? new Date(String(formData.get("dispatchedAt"))) : new Date(),
+      dispatchedAt: (() => {
+        const raw = String(formData.get("dispatchedAt") ?? "").trim();
+        if (!raw) return new Date();
+        const parsed = parseCalendarDateTime(raw);
+        if (!parsed) throw new Error("Dispatch time is not a valid date");
+        return parsed;
+      })(),
       customerFreezerNote: String(formData.get("customerFreezerNote") ?? ""),
       notes: String(formData.get("notes") ?? ""),
     },
   });
+  const challan = await prisma.deliveryChallan.findUnique({ where: { id }, select: { invoiceId: true } });
   revalidatePath("/sales/invoices");
+  if (challan) revalidatePath(`/sales/invoices/${challan.invoiceId}`);
   revalidatePath("/dashboard");
+  });
 }

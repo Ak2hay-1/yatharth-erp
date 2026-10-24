@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { rethrowRedirect } from "@/lib/utils";
 import { actionErrorMessage } from "@/lib/filters";
+import { isActionError } from "@/lib/run-action";
 
 export function ActionForm({
   action,
@@ -16,14 +18,27 @@ export function ActionForm({
   id?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   return (
     <form
       id={id}
       className={className}
+      onSubmit={(event) => {
+        const empty = event.currentTarget.querySelector("[data-empty-required='true']");
+        if (empty) {
+          event.preventDefault();
+          setError("Fill in the required fields.");
+        }
+      }}
       action={async (formData) => {
         setError(null);
         try {
-          await Promise.resolve(action(formData));
+          const result = await Promise.resolve(action(formData));
+          if (isActionError(result)) {
+            setError(result.error);
+            return;
+          }
+          router.refresh();
         } catch (e) {
           rethrowRedirect(e);
           setError(actionErrorMessage(e));

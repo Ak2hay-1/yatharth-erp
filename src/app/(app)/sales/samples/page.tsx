@@ -1,20 +1,32 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, Table, Td, Th, LinkButton, StatusBadge, Empty, Badge } from "@/components/ui";
-import { formatDate } from "@/lib/utils";
+import { formatDate, monthBoundsIst } from "@/lib/utils";
 import { labelOf, ORDER_KINDS } from "@/lib/labels";
 import { KPI_TARGETS } from "@/lib/labels";
 
-export default async function SamplesPage() {
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
+export default async function SamplesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = Math.max(1, Number((await searchParams).page) || 1);
+  const pageSize = 40;
+  const { start: monthStart } = monthBoundsIst();
 
-  const [samples, prospects, commercialThisMonth] = await Promise.all([
+  const [samples, sampleCount, sampleCustomers, prospects, commercialThisMonth, firstInvoices] = await Promise.all([
     prisma.salesOrder.findMany({
       where: { kind: { in: ["SAMPLE", "TRIAL"] } },
       include: { customer: true, lines: true },
       orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.salesOrder.count({ where: { kind: { in: ["SAMPLE", "TRIAL"] } } }),
+    prisma.salesOrder.findMany({
+      where: { kind: { in: ["SAMPLE", "TRIAL"] } },
+      select: { customerId: true },
+      distinct: ["customerId"],
     }),
     prisma.party.findMany({
       where: { lifecycle: "PROSPECT", isActive: true },
@@ -29,26 +41,18 @@ export default async function SamplesPage() {
       },
       select: { customerId: true, date: true },
     }),
+    prisma.invoice.groupBy({
+      by: ["customerId"],
+      where: { kind: "COMMERCIAL", status: "CONFIRMED", channel: "B2B" },
+      _min: { date: true },
+    }),
   ]);
 
   const firstCommercialIds = new Set(
-    (
-      await prisma.party.findMany({
-        where: { channel: "B2B" },
-        include: {
-          invoices: {
-            where: { kind: "COMMERCIAL", status: "CONFIRMED" },
-            orderBy: { date: "asc" },
-            take: 1,
-          },
-        },
-      })
-    )
-      .filter((p) => p.invoices[0] && p.invoices[0].date >= monthStart)
-      .map((p) => p.id),
+    firstInvoices.filter((row) => row._min.date && row._min.date >= monthStart).map((row) => row.customerId),
   );
 
-  const sampleCustomerIds = new Set(samples.map((s) => s.customerId));
+  const sampleCustomerIds = new Set(sampleCustomers.map((s) => s.customerId));
   const converted = [...sampleCustomerIds].filter((id) =>
     commercialThisMonth.some((c) => c.customerId === id),
   );
@@ -63,7 +67,7 @@ export default async function SamplesPage() {
             <LinkButton href="/sales/orders/new?kind=SAMPLE" variant="secondary">
               New sample
             </LinkButton>
-            <LinkButton href="/masters/parties/new">New prospect</LinkButton>
+            <LinkButton href="/masters/parties/new?lifecycle=PROSPECT">New prospect</LinkButton>
           </>
         }
       />
@@ -75,7 +79,7 @@ export default async function SamplesPage() {
         </Card>
         <Card className="p-4">
           <div className="text-xs uppercase text-muted">Samples / trials</div>
-          <div className="font-display text-2xl">{samples.length}</div>
+          <div className="font-display text-2xl">{sampleCount}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs uppercase text-muted">Converted this month</div>
@@ -165,6 +169,15 @@ export default async function SamplesPage() {
               </tbody>
             </Table>
           )}
+          {sampleCount > pageSize ? (
+            <div className="flex gap-3 px-3 py-3 text-sm">
+              {page > 1 ? <Link href={`/sales/samples?page=${page - 1}`} className="text-saffron">Previous</Link> : null}
+              <span className="text-muted">Page {page} of {Math.ceil(sampleCount / pageSize)}</span>
+              {page * pageSize < sampleCount ? (
+                <Link href={`/sales/samples?page=${page + 1}`} className="text-saffron">Next</Link>
+              ) : null}
+            </div>
+          ) : null}
         </Card>
       </div>
     </div>

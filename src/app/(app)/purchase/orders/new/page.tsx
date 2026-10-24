@@ -1,4 +1,4 @@
-import { Card, Field, Input, PageHeader } from "@/components/ui";
+import { Card, Field, Input, LinkButton, PageHeader } from "@/components/ui";
 import { LineEditor } from "@/components/line-editor";
 import { SubmitButton } from "@/components/submit-button";
 import { ActionForm } from "@/components/action-form";
@@ -24,7 +24,7 @@ export default async function NewPOPage() {
   ]);
   return (
     <div>
-      <PageHeader title="New purchase order" />
+      <PageHeader title="New purchase order" actions={<LinkButton href="/purchase/orders" variant="secondary">Cancel</LinkButton>} />
       <Card className="p-6">
         <ActionForm action={createPurchaseOrder} className="space-y-5">
           <div className="grid gap-4 md:grid-cols-3">

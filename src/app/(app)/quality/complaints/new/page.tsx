@@ -1,4 +1,4 @@
-import { Card, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
+import { Card, Field, Input, LinkButton, PageHeader, Select, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { ActionForm } from "@/components/action-form";
 import { NamedSearch } from "@/components/named-search";
@@ -26,7 +26,7 @@ export default async function NewComplaintPage() {
   ]);
   return (
     <div>
-      <PageHeader title="Log complaint" />
+      <PageHeader title="Log complaint" actions={<LinkButton href="/quality/complaints" variant="secondary">Cancel</LinkButton>} />
       <Card className="max-w-2xl p-6">
         <ActionForm action={createComplaint} className="grid gap-4 md:grid-cols-2">
           <Field label="Customer" className="md:col-span-2">

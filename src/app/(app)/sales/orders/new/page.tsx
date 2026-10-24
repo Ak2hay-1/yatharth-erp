@@ -1,4 +1,4 @@
-import { Card, Field, Input, PageHeader, Select } from "@/components/ui";
+import { Card, Field, Input, LinkButton, PageHeader, Select } from "@/components/ui";
 import { LineEditor } from "@/components/line-editor";
 import { SubmitButton } from "@/components/submit-button";
 import { ActionForm } from "@/components/action-form";
@@ -33,7 +33,7 @@ export default async function NewSalesOrderPage({
   const kind = sp.kind === "SAMPLE" || sp.kind === "TRIAL" || sp.kind === "COMMERCIAL" ? sp.kind : "COMMERCIAL";
   return (
     <div>
-      <PageHeader title="New sales order" />
+      <PageHeader title="New sales order" actions={<LinkButton href="/sales/orders" variant="secondary">Cancel</LinkButton>} />
       <Card className="p-6">
         <ActionForm action={createSalesOrder} className="space-y-5">
           <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">

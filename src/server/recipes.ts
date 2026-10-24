@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/session";
 import { MANAGEMENT } from "@/lib/permissions";
 import { entryUnitsFor, normalizeUnit, toBaseUnit } from "@/lib/units";
 import { parseNum, requiredString } from "@/lib/utils";
+import { runAction } from "@/lib/run-action";
 
 type Line = { itemId: string; qty: number };
 
@@ -48,6 +49,7 @@ async function parseLines(formData: FormData): Promise<Line[]> {
 }
 
 export async function createRecipe(formData: FormData) {
+  return runAction(async () => {
   await requireRole(MANAGEMENT);
   const finishedItemId = requiredString(formData.get("finishedItemId"), "Finished product");
   const existing = await prisma.recipe.findUnique({ where: { finishedItemId } });
@@ -64,9 +66,11 @@ export async function createRecipe(formData: FormData) {
   });
   revalidatePath("/masters/recipes");
   redirect("/masters/recipes");
+  });
 }
 
 export async function updateRecipe(id: string, formData: FormData) {
+  return runAction(async () => {
   await requireRole(MANAGEMENT);
   const lines = await parseLines(formData);
   await prisma.$transaction([
@@ -83,9 +87,22 @@ export async function updateRecipe(id: string, formData: FormData) {
   ]);
   revalidatePath("/masters/recipes");
   redirect("/masters/recipes");
+  });
+}
+
+export async function deleteRecipe(id: string) {
+  return runAction(async () => {
+    await requireRole(MANAGEMENT);
+    const used = await prisma.workOrder.count({ where: { recipeId: id } });
+    if (used > 0) throw new Error("This recipe has work orders and cannot be deleted");
+    await prisma.recipe.delete({ where: { id } });
+    revalidatePath("/masters/recipes");
+    redirect("/masters/recipes");
+  });
 }
 
 export async function saveRecipeTranslation(recipeId: string, formData: FormData) {
+  return runAction(async () => {
   await requireRole(MANAGEMENT);
   const locale = parseLocale(formData.get("locale"));
   const map: Record<string, string> = {};
@@ -123,4 +140,5 @@ export async function saveRecipeTranslation(recipeId: string, formData: FormData
   }
   revalidatePath(`/masters/recipes/${recipeId}`);
   redirect(`/masters/recipes/${recipeId}?locale=${locale}`);
+  });
 }

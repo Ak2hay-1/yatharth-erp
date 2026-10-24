@@ -1,14 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { addDays } from "@/lib/utils";
+import { addDays, monthBoundsIst, startOfTodayIst } from "@/lib/utils";
 import { KPI_TARGETS } from "@/lib/labels";
-import { contributionForLines, itemUnitCost } from "@/server/costing";
+import { contributionForLines, itemUnitCostMap } from "@/server/costing";
 
 function monthBounds(ref = new Date()) {
-  const start = new Date(ref.getFullYear(), ref.getMonth(), 1);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
-  end.setHours(23, 59, 59, 999);
-  return { start, end, key: `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}` };
+  return monthBoundsIst(ref);
 }
 
 function pct(num: number, den: number) {
@@ -17,8 +13,7 @@ function pct(num: number, den: number) {
 
 export async function getMentorKpis(ref = new Date()) {
   const { start, end, key } = monthBounds(ref);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = startOfTodayIst();
 
   const [
     invoices,
@@ -33,7 +28,7 @@ export async function getMentorKpis(ref = new Date()) {
     review,
   ] = await Promise.all([
     prisma.invoice.findMany({
-      where: { status: { not: "CANCELLED" }, date: { gte: start, lte: end } },
+      where: { status: "CONFIRMED", date: { gte: start, lte: end } },
       include: { customer: true, lines: true, challans: true, salesOrder: true },
     }),
     prisma.productionBatch.findMany({
@@ -113,12 +108,15 @@ export async function getMentorKpis(ref = new Date()) {
     parties.some((p) => p.id === id && p.invoices.some((i) => i.date >= start)),
   );
 
-  const skuRows = await Promise.all(
-    finishedItems.map(async (item) => {
+  const unitCosts = await itemUnitCostMap(
+    prisma,
+    finishedItems.map((item) => item.id),
+  );
+  const skuRows = finishedItems.map((item) => {
       const lines = commercialInvoices.flatMap((inv) => inv.lines.filter((l) => l.itemId === item.id));
       const qtySold = lines.reduce((s, l) => s + l.qty, 0);
       const revenue = lines.reduce((s, l) => s + l.taxable, 0);
-      const unitCost = await itemUnitCost(prisma, item.id);
+      const unitCost = unitCosts.get(item.id) ?? 0;
       const cost = qtySold * unitCost;
       const contribution = revenue - cost;
       const contributionPct = pct(contribution, revenue);
@@ -153,8 +151,7 @@ export async function getMentorKpis(ref = new Date()) {
           failRepeat ? "repeat" : null,
         ].filter(Boolean) as string[],
       };
-    }),
-  );
+  });
 
   const topContribution = [...skuRows].sort((a, b) => b.contribution - a.contribution).slice(0, 5);
   const discontinue = skuRows.filter((s) => s.discontinue && (s.revenue > 0 || s.yieldPct > 0));

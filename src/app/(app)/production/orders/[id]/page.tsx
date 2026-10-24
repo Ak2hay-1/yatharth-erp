@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card, Field, Input, PageHeader, Table, Td, Th, StatusBadge, Select } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
-import { produceBatch } from "@/server/production";
+import { cancelWorkOrder, produceBatch } from "@/server/production";
 import { getStockHints } from "@/server/stock";
 import { ActionForm } from "@/components/action-form";
 import { addDays, formatDate, qty, toInputDate } from "@/lib/utils";
@@ -109,6 +109,11 @@ export default async function WorkOrderDetailPage({ params }: { params: Promise<
               </Field>
               <SubmitButton>Complete production</SubmitButton>
             </ActionForm>
+            <div className="mt-4">
+              <ActionForm action={cancelWorkOrder.bind(null, wo.id)}>
+                <SubmitButton variant="danger">Cancel work order</SubmitButton>
+              </ActionForm>
+            </div>
           </Card>
         ) : (
           <Card className="p-5">

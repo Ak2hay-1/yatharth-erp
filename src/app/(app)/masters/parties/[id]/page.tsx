@@ -3,7 +3,7 @@ import { Card, PageHeader } from "@/components/ui";
 import { PartyForm } from "@/components/master-forms";
 import { SubmitButton } from "@/components/submit-button";
 import { ActionForm } from "@/components/action-form";
-import { updateParty } from "@/server/parties";
+import { setPartyActive, updateParty } from "@/server/parties";
 import { repeatLastOrder } from "@/server/sales";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -20,11 +20,16 @@ export default async function EditPartyPage({ params }: { params: Promise<{ id: 
       <PageHeader
         title={party.name}
         actions={
-          canReorder ? (
-            <ActionForm action={repeatLastOrder.bind(null, party.id)}>
-              <SubmitButton>Repeat last order</SubmitButton>
+          <>
+            {canReorder ? (
+              <ActionForm action={repeatLastOrder.bind(null, party.id)}>
+                <SubmitButton>Repeat last order</SubmitButton>
+              </ActionForm>
+            ) : null}
+            <ActionForm action={setPartyActive.bind(null, party.id, !party.isActive)}>
+              <SubmitButton variant="secondary">{party.isActive ? "Deactivate" : "Reactivate"}</SubmitButton>
             </ActionForm>
-          ) : undefined
+          </>
         }
       />
       <Card className="p-6">

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Factory, IndianRupee, PackageMinus, Repeat, Target } from "lucide-react";
+import { AlertTriangle, Factory, IndianRupee, PackageMinus, Repeat, Target, TimerOff } from "lucide-react";
 import { Card, PageHeader, Table, Td, Th, Empty, Badge, Field, Input, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { getDashboard } from "@/server/dashboard";
@@ -112,11 +112,12 @@ export default async function DashboardPage() {
         </form>
       </Card>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi icon={<IndianRupee size={18} />} label="Sales today" value={money(d.todaySales)} hint={`${d.todayInvoiceCount} invoices`} />
         <Kpi icon={<Factory size={18} />} label="Produced today" value={qty(d.todayProductionQty)} hint={`${d.todayProductionCount} batches`} />
         <Kpi icon={<PackageMinus size={18} />} label="Low stock" value={String(d.low.length)} hint="At or below reorder" />
         <Kpi icon={<AlertTriangle size={18} />} label="Expiring in 7 days" value={String(d.expiring7.length)} hint={`${d.expiring30.length} within 30 days`} />
+        <Kpi icon={<TimerOff size={18} />} label="Expired" value={String(d.expiredCount)} hint="Lots past expiry, not sellable" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -271,6 +272,37 @@ export default async function DashboardPage() {
                     </Td>
                     <Td>{qty(row.onHand, row.item.unit)}</Td>
                     <Td>{qty(row.item.reorderLevel, row.item.unit)}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+
+        <Card className="p-5">
+          <h2 className="font-display mb-3 text-xl">Expired</h2>
+          {d.expired.length === 0 ? (
+            <Empty>No expired lots with stock.</Empty>
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Lot</Th>
+                  <Th>Qty</Th>
+                  <Th>Expiry</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {d.expired.map((b) => (
+                  <tr key={b.id}>
+                    <Td>
+                      <div className="font-medium">{b.item.name}</div>
+                      <div className="text-xs text-muted">{b.lotNo}</div>
+                    </Td>
+                    <Td>{qty(b.qtyOnHand, b.item.unit)}</Td>
+                    <Td>
+                      <Badge tone="bad">{formatDate(b.expiryDate)}</Badge>
+                    </Td>
                   </tr>
                 ))}
               </tbody>

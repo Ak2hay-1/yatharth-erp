@@ -1,5 +1,5 @@
 import type { DocumentCategory } from "@prisma/client";
-import { Card, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
+import { Card, Field, Input, LinkButton, PageHeader, Select, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { ActionForm } from "@/components/action-form";
 import { createPlantDocument } from "@/server/documents";
@@ -26,6 +26,7 @@ export async function PlantDocumentNew({ category }: { category: DocumentCategor
             ? "Write the procedure, add a Mermaid flowchart, optionally attach a file (up to 25 MB)."
             : "PDF, images, or Office files up to 25 MB."
         }
+        actions={<LinkButton href={meta.back} variant="secondary">Cancel</LinkButton>}
       />
       <Card className="max-w-3xl p-6">
         <ActionForm action={createPlantDocument} className="grid gap-4 md:grid-cols-2">
