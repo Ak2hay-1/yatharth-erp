@@ -11,7 +11,8 @@ export default async function CounterSalePage() {
   const canManage = can(user.role, MANAGEMENT);
   const [customers, items, stockHints] = await Promise.all([
     prisma.party.findMany({
-      where: { isActive: true, kind: { in: ["CUSTOMER", "BOTH"] }, channel: "B2C" },
+      where: { isActive: true, kind: { in: ["CUSTOMER", "BOTH"] } },
+      select: { id: true, name: true, phone: true, city: true, gstin: true },
       orderBy: { name: "asc" },
     }),
     prisma.item.findMany({

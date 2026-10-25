@@ -16,13 +16,13 @@ export function CounterSaleForm({
   action,
   canCreate = false,
 }: {
-  customers: { id: string; name: string }[];
+  customers: { id: string; name: string; phone?: string; city?: string; gstin?: string }[];
   items: CatalogItem[];
   stockHints: Record<string, StockHint>;
   action: (formData: FormData) => Promise<unknown>;
   canCreate?: boolean;
 }) {
-  const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
+  const [customerId, setCustomerId] = useState("");
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -44,7 +44,12 @@ export function CounterSaleForm({
             value={customerId}
             onChange={setCustomerId}
             required
-            options={customers.map((c) => ({ id: c.id, label: c.name }))}
+            options={customers.map((c) => ({
+              id: c.id,
+              label: c.name,
+              sub: [c.phone, c.city].filter(Boolean).join(" · ") || undefined,
+              search: [c.name, c.phone, c.city, c.gstin].filter(Boolean).join(" "),
+            }))}
             placeholder="Type customer"
             canCreate={canCreate}
             defaultKind="CUSTOMER"

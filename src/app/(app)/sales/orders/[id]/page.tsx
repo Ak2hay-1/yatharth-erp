@@ -35,6 +35,7 @@ export default async function SalesOrderDetailPage({ params }: { params: Promise
       ? await Promise.all([
           prisma.party.findMany({
             where: { isActive: true, kind: { in: ["CUSTOMER", "BOTH"] } },
+            select: { id: true, name: true, phone: true, city: true, gstin: true },
             orderBy: { name: "asc" },
           }),
           prisma.item.findMany({ where: { isActive: true, type: "FINISHED" }, orderBy: { name: "asc" } }),
@@ -63,7 +64,11 @@ export default async function SalesOrderDetailPage({ params }: { params: Promise
                     canCreate={canManage}
                     defaultKind="CUSTOMER"
                     createLabel="Add new customer"
-                    options={customers.map((c) => ({ id: c.id, label: c.name }))}
+                    options={customers.map((c) => ({
+                      id: c.id,
+                      label: c.name,
+                      search: [c.name, c.phone, c.city, c.gstin].filter(Boolean).join(" "),
+                    }))}
                   />
                 </Field>
                 <Field label="Order kind">

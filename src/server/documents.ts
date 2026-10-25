@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ContentLocale, DocumentCategory } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { MANAGEMENT, OPS } from "@/lib/permissions";
 import { requiredString } from "@/lib/utils";
@@ -44,7 +44,7 @@ export async function createPlantDocument(formData: FormData) {
 
   let rowId = "";
   try {
-    const row = await prisma.$transaction(async (tx) => {
+    const row = await withTransaction(async (tx) => {
       const prefix = category === "SOP" ? "SOP" : "DOC";
       const number = await nextNumberTx(tx, prefix);
       return tx.plantDocument.create({

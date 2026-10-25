@@ -3,7 +3,19 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
-export type SearchOption = { id: string; label: string; sub?: string };
+export type SearchOption = { id: string; label: string; sub?: string; search?: string };
+
+function optionHaystack(option: SearchOption) {
+  return (option.search ?? `${option.label} ${option.sub ?? ""}`).toLowerCase();
+}
+
+function optionMatches(option: SearchOption, query: string) {
+  const hay = optionHaystack(option);
+  if (hay.includes(query)) return true;
+  const digits = query.replace(/\D/g, "");
+  if (digits.length >= 4 && hay.replace(/\D/g, "").includes(digits)) return true;
+  return false;
+}
 
 export function SearchableSelect({
   name,
@@ -29,6 +41,7 @@ export function SearchableSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const openedBlank = useRef(false);
   const root = useRef<HTMLDivElement>(null);
   const listId = useId();
   const selected = options.find((o) => o.id === value);
@@ -45,9 +58,7 @@ export function SearchableSelect({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options.slice(0, 40);
-    return options
-      .filter((o) => `${o.label} ${o.sub ?? ""}`.toLowerCase().includes(q))
-      .slice(0, 40);
+    return options.filter((o) => optionMatches(o, q)).slice(0, 40);
   }, [options, query]);
 
   useEffect(() => {
@@ -76,14 +87,31 @@ export function SearchableSelect({
         disabled={disabled}
         placeholder={placeholder}
         autoComplete="off"
+        onMouseDown={() => {
+          if (disabled || open) return;
+          openedBlank.current = true;
+          setQuery("");
+          setOpen(true);
+        }}
         onFocus={() => {
+          openedBlank.current = true;
           setOpen(true);
           setQuery("");
         }}
         onChange={(e) => {
-          setQuery(e.target.value);
+          let next = e.target.value;
+          const label = selected?.label ?? "";
+          if (label && query === "" && next.startsWith(label)) next = next.slice(label.length);
+          if (openedBlank.current && next === "") {
+            openedBlank.current = false;
+            setQuery("");
+            setOpen(true);
+            return;
+          }
+          openedBlank.current = false;
+          setQuery(next);
           setOpen(true);
-          if (!e.target.value) onChange("");
+          if (!next) onChange("");
         }}
         onKeyDown={(e) => {
           if (e.key === "Escape") setOpen(false);
@@ -116,7 +144,8 @@ export function SearchableSelect({
                     "w-full px-3 py-2 text-left text-sm hover:bg-bg",
                     o.id === value && "bg-sprout/40",
                   )}
-                  onClick={() => {
+                  onMouseDown={(e) => {
+                    e.preventDefault();
                     onChange(o.id);
                     setQuery("");
                     setOpen(false);
@@ -128,6 +157,9 @@ export function SearchableSelect({
               </li>
             ))
           )}
+          {!query.trim() && options.length > 40 ? (
+            <li className="px-3 py-2 text-xs text-muted">Type to search all {options.length}.</li>
+          ) : null}
           {canCreate ? (
             <li className="border-t border-line">
               <button

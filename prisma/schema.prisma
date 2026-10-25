@@ -280,6 +280,8 @@ model Party {
   invoices       Invoice[]
   payments       Payment[]
   complaints     Complaint[]
+
+  @@index([kind])
 }
 
 model Batch {
@@ -299,6 +301,8 @@ model Batch {
   complaints   Complaint[]
 
   @@unique([itemId, lotNo])
+  @@index([itemId])
+  @@index([itemId, expiryDate])
 }
 
 model StockMove {
@@ -314,6 +318,9 @@ model StockMove {
   refId      String
   notes      String        @default("")
   createdAt  DateTime      @default(now())
+
+  @@index([type, createdAt])
+  @@index([refType, refId])
 }
 
 model PurchaseOrder {
@@ -438,6 +445,9 @@ model ProductionBatch {
   status       DocStatus @default(DRAFT)
   notes        String    @default("")
   createdAt    DateTime  @default(now())
+
+  @@index([mfgDate])
+  @@index([workOrderId])
 }
 
 model SalesOrder {
@@ -499,6 +509,9 @@ model Invoice {
   challans      DeliveryChallan[]
   allocations   PaymentAllocation[]
   complaints    Complaint[]
+
+  @@index([status, date])
+  @@index([customerId, status])
 }
 
 model InvoiceLine {

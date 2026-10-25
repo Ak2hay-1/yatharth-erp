@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 type Tx = Prisma.TransactionClient | typeof prisma;
@@ -35,24 +35,30 @@ export async function itemUnitCost(tx: Tx, itemId: string) {
 export async function itemUnitCostMap(tx: Tx, itemIds: string[]) {
   const map = new Map<string, number>();
   if (!itemIds.length) return map;
-  const latest = await tx.productionBatch.findMany({
-    where: {
-      status: { not: "CANCELLED" },
-      unitCost: { gt: 0 },
-      workOrder: { recipe: { finishedItemId: { in: itemIds } } },
-    },
-    orderBy: { mfgDate: "desc" },
-    include: { workOrder: { select: { recipe: { select: { finishedItemId: true } } } } },
-  });
+  const latest = await tx.$queryRaw<{ itemId: string; unitCost: number }[]>`
+    SELECT DISTINCT ON (r."finishedItemId")
+      r."finishedItemId" AS "itemId",
+      pb."unitCost" AS "unitCost"
+    FROM "ProductionBatch" pb
+    JOIN "WorkOrder" wo ON wo.id = pb."workOrderId"
+    JOIN "Recipe" r ON r.id = wo."recipeId"
+    WHERE pb.status <> 'CANCELLED'::"DocStatus"
+      AND pb."unitCost" > 0
+      AND r."finishedItemId" IN (${Prisma.join(itemIds)})
+    ORDER BY r."finishedItemId", pb."mfgDate" DESC, pb."createdAt" DESC
+  `;
   for (const row of latest) {
-    const id = row.workOrder.recipe.finishedItemId;
-    if (!map.has(id)) map.set(id, row.unitCost);
+    if (!map.has(row.itemId)) map.set(row.itemId, Number(row.unitCost));
   }
   const missing = itemIds.filter((id) => !map.has(id));
   if (missing.length) {
     const recipes = await tx.recipe.findMany({
       where: { finishedItemId: { in: missing } },
-      include: { lines: { include: { item: true } } },
+      select: {
+        finishedItemId: true,
+        outputQty: true,
+        lines: { select: { qty: true, item: { select: { purchasePrice: true } } } },
+      },
     });
     for (const recipe of recipes) {
       if (recipe.outputQty <= 0) {
@@ -111,6 +117,43 @@ export function resolveMarkups(
     wholesale: item.overrideWholesalePct ?? company.markupWholesalePct,
     distributor: item.overrideDistributorPct ?? company.markupDistributorPct,
     mrp: item.overrideMrpPct ?? company.markupMrpPct,
+  };
+}
+
+export function shownCosting(
+  item: {
+    mfgCost: number;
+    usp: number;
+    rateB2b: number;
+    rateWholesale: number;
+    rateDistributor: number;
+    rateMrp: number;
+    mfgCostSource: string;
+    mfgCostUpdatedAt: Date | null;
+    overrideB2bPct: number | null;
+    overrideWholesalePct: number | null;
+    overrideDistributorPct: number | null;
+    overrideMrpPct: number | null;
+  },
+  computedMfg: number,
+  company: { markupB2bPct: number; markupWholesalePct: number; markupDistributorPct: number; markupMrpPct: number },
+) {
+  const saved = item.mfgCostUpdatedAt != null || item.mfgCostSource !== "NONE";
+  const mfgCost = saved ? item.mfgCost : computedMfg;
+  const suggested = ratesFromMfg(mfgCost, resolveMarkups(company, item));
+  const rates = saved
+    ? {
+        usp: item.usp,
+        rateB2b: item.rateB2b,
+        rateWholesale: item.rateWholesale,
+        rateDistributor: item.rateDistributor,
+        rateMrp: item.rateMrp,
+      }
+    : suggested;
+  return {
+    mfgCost,
+    ...rates,
+    missingPurchasePrices: mfgCost <= 0 && computedMfg <= 0,
   };
 }
 

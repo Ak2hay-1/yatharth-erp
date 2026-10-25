@@ -2,13 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { FINANCE, OPS } from "@/lib/permissions";
 import { addDays, parseNum, requireCalendarDate, requiredString, round3, startOfTodayIst } from "@/lib/utils";
 import { nextNumberTx } from "@/server/numbers";
-import { addStock } from "@/server/stock";
+import { addStock, addStockMany, postStockAdjustments } from "@/server/stock";
 import { isInterstate, sumTax, taxLine } from "@/lib/gst";
 import { runAction } from "@/lib/run-action";
 
@@ -105,7 +105,7 @@ export async function createPurchaseOrder(formData: FormData) {
   return runAction(async () => {
   await requireRole(OPS);
   const lines = parseLines(formData);
-  const po = await prisma.$transaction(async (tx) => {
+  const po = await withTransaction(async (tx) => {
     const number = await nextNumberTx(tx, "PO");
     return tx.purchaseOrder.create({
       data: {
@@ -147,7 +147,7 @@ export async function createGoodsReceipt(formData: FormData) {
   for (const line of lines) {
     if (!line.lotNo) throw new Error("Lot number is required on every GRN line");
   }
-  const grn = await prisma.$transaction(async (tx) => {
+  const grn = await withTransaction(async (tx) => {
     await assertGrnWithinPo(tx, poId, lines);
     const number = await nextNumberTx(tx, "GRN");
     return tx.goodsReceipt.create({
@@ -168,29 +168,38 @@ export async function createGoodsReceipt(formData: FormData) {
 export async function confirmGoodsReceipt(id: string) {
   return runAction(async () => {
   await requireRole(OPS);
-  await prisma.$transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     const grn = await tx.goodsReceipt.findUnique({
       where: { id },
       include: { lines: true, po: true },
     });
     if (!grn || grn.status !== "DRAFT") throw new Error("Only draft GRNs can be confirmed");
     await assertGrnWithinPo(tx, grn.poId, grn.lines, grn.id);
-    for (const line of grn.lines) {
-      const batch = await addStock(tx, {
+    const batches = await addStockMany(
+      tx,
+      grn.lines.map((line) => ({
         itemId: line.itemId,
         lotNo: line.lotNo,
         mfgDate: line.mfgDate,
         expiryDate: line.expiryDate,
         qty: line.qty,
-        source: "PURCHASE",
+        source: "PURCHASE" as const,
         sourceId: grn.id,
-        moveType: "PURCHASE",
+        moveType: "PURCHASE" as const,
         notes: `GRN ${grn.number}`,
-      });
-      await tx.goodsReceiptLine.update({
-        where: { id: line.id },
-        data: { batchId: batch.id },
-      });
+      })),
+    );
+    if (grn.lines.length) {
+      await tx.$executeRaw`
+        UPDATE "GoodsReceiptLine" AS g
+        SET "batchId" = v.batch_id
+        FROM (
+          VALUES ${Prisma.join(
+            grn.lines.map((line, index) => Prisma.sql`(${line.id}::text, ${batches[index].id}::text)`),
+          )}
+        ) AS v(id, batch_id)
+        WHERE g.id = v.id
+      `;
     }
     await tx.goodsReceipt.update({ where: { id }, data: { status: "CONFIRMED" } });
     await refreshPoReceiptStatus(tx, grn.poId);
@@ -223,20 +232,84 @@ export async function updatePurchaseOrder(id: string, formData: FormData) {
   });
 }
 
+type ReceiptToVoid = {
+  id: string;
+  number: string;
+  poId: string;
+  lines: { itemId: string; qty: number; lotNo: string; batchId: string | null }[];
+  bills: { id: string; number: string; paid: number }[];
+};
+
+async function voidConfirmedReceipt(tx: Tx, grn: ReceiptToVoid) {
+  for (const bill of grn.bills) {
+    if (bill.paid > 0.009) {
+      throw new Error(`Void the payment on bill ${bill.number} before reversing this receipt`);
+    }
+  }
+  if (grn.bills.length) {
+    await tx.supplierBill.updateMany({
+      where: { id: { in: grn.bills.map((bill) => bill.id) } },
+      data: { status: "CANCELLED" },
+    });
+  }
+  const batchIds = grn.lines.map((line) => line.batchId).filter((id): id is string => !!id);
+  const batches = batchIds.length
+    ? await tx.batch.findMany({ where: { id: { in: batchIds } }, select: { id: true, qtyOnHand: true } })
+    : [];
+  const onHand = new Map(batches.map((batch) => [batch.id, batch.qtyOnHand]));
+  const rows = [];
+  for (const line of grn.lines) {
+    if (!line.batchId) throw new Error(`Lot ${line.lotNo} is not linked to stock`);
+    const have = onHand.get(line.batchId);
+    if (have == null || have + 0.0005 < line.qty) {
+      throw new Error(`Stock from lot ${line.lotNo} has already been used`);
+    }
+    onHand.set(line.batchId, round3(have - line.qty));
+    rows.push({
+      itemId: line.itemId,
+      batchId: line.batchId,
+      qty: -line.qty,
+      refType: "GRN",
+      refId: grn.id,
+      notes: `Void ${grn.number}`,
+    });
+  }
+  await postStockAdjustments(tx, rows);
+  await tx.goodsReceipt.update({ where: { id: grn.id }, data: { status: "CANCELLED" } });
+}
+
 export async function cancelPurchaseOrder(id: string) {
   return runAction(async () => {
   await requireRole(OPS);
-  const po = await prisma.purchaseOrder.findUnique({
-    where: { id },
-    include: { receipts: { where: { status: "CONFIRMED" }, select: { id: true } } },
+  await withTransaction(async (tx) => {
+    const po = await tx.purchaseOrder.findUnique({
+      where: { id },
+      include: {
+        receipts: {
+          where: { status: "CONFIRMED" },
+          include: {
+            lines: true,
+            bills: { where: { status: { not: "CANCELLED" } }, select: { id: true, number: true, paid: true } },
+          },
+        },
+      },
+    });
+    if (!po || po.status === "CANCELLED") throw new Error("This purchase order cannot be cancelled");
+    if (po.status !== "DRAFT" && po.status !== "CONFIRMED" && po.status !== "COMPLETED") {
+      throw new Error("This purchase order cannot be cancelled");
+    }
+    for (const grn of po.receipts) await voidConfirmedReceipt(tx, grn);
+    await tx.goodsReceipt.updateMany({
+      where: { poId: id, status: "DRAFT" },
+      data: { status: "CANCELLED" },
+    });
+    await tx.purchaseOrder.update({ where: { id }, data: { status: "CANCELLED" } });
   });
-  if (!po || (po.status !== "DRAFT" && po.status !== "CONFIRMED")) {
-    throw new Error("Only a draft or confirmed PO with no confirmed GRN can be cancelled");
-  }
-  if (po.receipts.length > 0) throw new Error("This PO has a confirmed GRN and cannot be cancelled");
-  await prisma.purchaseOrder.update({ where: { id }, data: { status: "CANCELLED" } });
   revalidatePath(`/purchase/orders/${id}`);
   revalidatePath("/purchase/orders");
+  revalidatePath("/purchase/grn");
+  revalidatePath("/purchase/bills");
+  revalidatePath("/inventory/stock");
   });
 }
 
@@ -249,7 +322,7 @@ export async function updateGoodsReceipt(id: string, formData: FormData) {
   for (const line of lines) {
     if (!line.lotNo) throw new Error("Lot number is required on every GRN line");
   }
-  await prisma.$transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     await assertGrnWithinPo(tx, grn.poId, lines, id);
     await tx.goodsReceiptLine.deleteMany({ where: { grnId: id } });
     await tx.goodsReceipt.update({
@@ -268,44 +341,25 @@ export async function updateGoodsReceipt(id: string, formData: FormData) {
 export async function cancelGoodsReceipt(id: string) {
   return runAction(async () => {
   await requireRole(OPS);
-  await prisma.$transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     const grn = await tx.goodsReceipt.findUnique({
       where: { id },
-      include: { lines: true, bills: { where: { status: { not: "CANCELLED" } }, select: { id: true } } },
+      include: {
+        lines: true,
+        bills: { where: { status: { not: "CANCELLED" } }, select: { id: true, number: true, paid: true } },
+      },
     });
     if (!grn || (grn.status !== "DRAFT" && grn.status !== "CONFIRMED")) {
       throw new Error("This GRN cannot be cancelled");
     }
-    if (grn.status === "CONFIRMED") {
-      if (grn.bills.length > 0) throw new Error("Cancel the supplier bill before voiding this GRN");
-      for (const line of grn.lines) {
-        if (!line.batchId) throw new Error(`Lot ${line.lotNo} is not linked to stock`);
-        const batch = await tx.batch.findUnique({ where: { id: line.batchId } });
-        if (!batch || batch.qtyOnHand + 0.0005 < line.qty) {
-          throw new Error(`Stock from lot ${line.lotNo} has already been used`);
-        }
-        await tx.batch.update({
-          where: { id: batch.id },
-          data: { qtyOnHand: { decrement: line.qty } },
-        });
-        await tx.stockMove.create({
-          data: {
-            itemId: line.itemId,
-            batchId: batch.id,
-            type: "ADJUST",
-            qty: -line.qty,
-            refType: "GRN",
-            refId: grn.id,
-            notes: `Void ${grn.number}`,
-          },
-        });
-      }
-    }
-    await tx.goodsReceipt.update({ where: { id }, data: { status: "CANCELLED" } });
+    if (grn.status === "CONFIRMED") await voidConfirmedReceipt(tx, grn);
+    else await tx.goodsReceipt.update({ where: { id }, data: { status: "CANCELLED" } });
     await refreshPoReceiptStatus(tx, grn.poId);
   });
   revalidatePath(`/purchase/grn/${id}`);
   revalidatePath("/purchase/grn");
+  revalidatePath("/purchase/bills");
+  revalidatePath("/purchase/orders");
   revalidatePath("/inventory/stock");
   });
 }
@@ -339,7 +393,7 @@ export async function createSupplierBill(formData: FormData) {
   });
   const totals = sumTax(computed);
 
-  const bill = await prisma.$transaction(async (tx) => {
+  const bill = await withTransaction(async (tx) => {
     const number = await nextNumberTx(tx, "BILL");
     return tx.supplierBill.create({
       data: {
@@ -402,7 +456,7 @@ export async function adjustStock(formData: FormData) {
       ? wasteCauseRaw
       : "OTHER";
 
-  await prisma.$transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     if (qty < 0) {
       const { consumeStock } = await import("@/server/stock");
       await consumeStock(tx, {

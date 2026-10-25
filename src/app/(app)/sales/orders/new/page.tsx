@@ -22,6 +22,7 @@ export default async function NewSalesOrderPage({
   const [customers, items, stockHints] = await Promise.all([
     prisma.party.findMany({
       where: { isActive: true, kind: { in: ["CUSTOMER", "BOTH"] } },
+      select: { id: true, name: true, phone: true, city: true, gstin: true, lifecycle: true, channel: true },
       orderBy: { name: "asc" },
     }),
     prisma.item.findMany({
@@ -51,6 +52,7 @@ export default async function NewSalesOrderPage({
                   id: c.id,
                   label: c.name,
                   sub: c.lifecycle === "PROSPECT" ? "prospect" : c.channel ?? undefined,
+                  search: [c.name, c.phone, c.city, c.gstin, c.channel].filter(Boolean).join(" "),
                 }))}
               />
             </Field>

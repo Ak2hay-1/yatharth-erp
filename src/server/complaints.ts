@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ComplaintIssue, ComplaintStatus } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { OPS } from "@/lib/permissions";
 import { requiredString } from "@/lib/utils";
@@ -33,7 +33,7 @@ async function saveComplaintFiles(complaintId: string, formData: FormData) {
 
 export async function createComplaint(formData: FormData) {
   await requireRole(OPS);
-  const row = await prisma.$transaction(async (tx) => {
+  const row = await withTransaction(async (tx) => {
     const number = await nextNumberTx(tx, "CMP");
     const itemId = String(formData.get("itemId") ?? "");
     const batchId = String(formData.get("batchId") ?? "");

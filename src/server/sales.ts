@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { CustomerChannel, Prisma, SalesOrderKind } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { OPS } from "@/lib/permissions";
 import { addDays, parseCalendarDateTime, requireCalendarDate, requiredString, startOfTodayIst } from "@/lib/utils";
-import { isInterstate, sumTax, taxLine } from "@/lib/gst";
+import { isInterstate, sumTax, taxLine, type TaxLine } from "@/lib/gst";
 import { nextNumberTx } from "@/server/numbers";
-import { consumeStock, pickFefo } from "@/server/stock";
+import { assertFefo, consumeStockLines, postStockAdjustments } from "@/server/stock";
 import { assertCreditOk } from "@/server/credit";
 import { runAction } from "@/lib/run-action";
 
@@ -57,7 +57,7 @@ export async function createSalesOrder(formData: FormData) {
   const promisedRaw = String(formData.get("promisedDate") ?? "");
   const lines = parseLines(formData);
 
-  const so = await prisma.$transaction(async (tx) => {
+  const so = await withTransaction(async (tx) => {
     const number = await nextNumberTx(tx, "SO");
     return tx.salesOrder.create({
       data: {
@@ -85,10 +85,10 @@ export async function confirmSalesOrder(id: string) {
   await requireRole(OPS);
   const so = await prisma.salesOrder.findUnique({ where: { id }, include: { lines: true } });
   if (!so || so.status !== "DRAFT") throw new Error("Only draft orders can be confirmed");
-  await prisma.$transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     const byItem = new Map<string, number>();
     for (const line of so.lines) byItem.set(line.itemId, (byItem.get(line.itemId) ?? 0) + line.qty);
-    for (const [itemId, qty] of byItem) await pickFefo(tx, itemId, qty);
+    await assertFefo(tx, [...byItem].map(([itemId, qty]) => ({ itemId, qty })));
     if (so.kind === "COMMERCIAL") {
       const extra = await invoiceLineTotal(
         tx,
@@ -167,7 +167,12 @@ async function buildInvoiceFromLines(
   const itemMap = Object.fromEntries(items.map((i) => [i.id, i]));
 
   if (input.confirm && input.kind === "COMMERCIAL") {
-    const extra = await invoiceLineTotal(tx, input.lines, input.customerId);
+    let extra = 0;
+    for (const line of input.lines) {
+      const item = itemMap[line.itemId];
+      if (!item) throw new Error("Item missing");
+      extra += taxLine({ qty: line.qty, rate: line.rate, gstRate: item.gstRate }, interstate).amount;
+    }
     await assertCreditOk(tx, input.customerId, extra);
   }
 
@@ -188,58 +193,72 @@ async function buildInvoiceFromLines(
     },
   });
 
-  const computed = [];
-  for (const line of input.lines) {
+  const computed: TaxLine[] = [];
+  const lineRows: {
+    invoiceId: string;
+    itemId: string;
+    batchId: string | null;
+    qty: number;
+    rate: number;
+    hsn: string;
+    gstRate: number;
+    taxable: number;
+    cgst: number;
+    sgst: number;
+    igst: number;
+  }[] = [];
+  const picksByLine = input.confirm
+    ? await consumeStockLines(
+        tx,
+        input.lines.map((line) => ({
+          itemId: line.itemId,
+          qty: line.qty,
+          moveType: "SALE" as const,
+          refType: "INVOICE",
+          refId: invoice.id,
+          notes: `INV ${number}`,
+        })),
+      )
+    : [];
+  input.lines.forEach((line, index) => {
     const item = itemMap[line.itemId];
     if (!item) throw new Error("Item missing");
     const tax = taxLine({ qty: line.qty, rate: line.rate, gstRate: item.gstRate }, interstate);
-    let batchId: string | null = null;
+    computed.push(tax);
     if (input.confirm) {
-      const picks = await consumeStock(tx, {
-        itemId: line.itemId,
-        qty: line.qty,
-        moveType: "SALE",
-        refType: "INVOICE",
-        refId: invoice.id,
-        notes: `INV ${number}`,
-      });
-      batchId = picks[0]?.batchId ?? null;
-      for (const pick of picks) {
-        await tx.invoiceLine.create({
-          data: {
-            invoiceId: invoice.id,
-            itemId: line.itemId,
-            batchId: pick.batchId,
-            qty: pick.qty,
-            rate: line.rate,
-            hsn: item.hsn,
-            gstRate: item.gstRate,
-            taxable: taxLine({ qty: pick.qty, rate: line.rate, gstRate: item.gstRate }, interstate).taxable,
-            cgst: taxLine({ qty: pick.qty, rate: line.rate, gstRate: item.gstRate }, interstate).cgst,
-            sgst: taxLine({ qty: pick.qty, rate: line.rate, gstRate: item.gstRate }, interstate).sgst,
-            igst: taxLine({ qty: pick.qty, rate: line.rate, gstRate: item.gstRate }, interstate).igst,
-          },
-        });
-      }
-    } else {
-      await tx.invoiceLine.create({
-        data: {
+      for (const pick of picksByLine[index] ?? []) {
+        const pickTax = taxLine({ qty: pick.qty, rate: line.rate, gstRate: item.gstRate }, interstate);
+        lineRows.push({
           invoiceId: invoice.id,
           itemId: line.itemId,
-          batchId,
-          qty: line.qty,
+          batchId: pick.batchId,
+          qty: pick.qty,
           rate: line.rate,
           hsn: item.hsn,
           gstRate: item.gstRate,
-          taxable: tax.taxable,
-          cgst: tax.cgst,
-          sgst: tax.sgst,
-          igst: tax.igst,
-        },
+          taxable: pickTax.taxable,
+          cgst: pickTax.cgst,
+          sgst: pickTax.sgst,
+          igst: pickTax.igst,
+        });
+      }
+    } else {
+      lineRows.push({
+        invoiceId: invoice.id,
+        itemId: line.itemId,
+        batchId: null,
+        qty: line.qty,
+        rate: line.rate,
+        hsn: item.hsn,
+        gstRate: item.gstRate,
+        taxable: tax.taxable,
+        cgst: tax.cgst,
+        sgst: tax.sgst,
+        igst: tax.igst,
       });
     }
-    computed.push(tax);
-  }
+  });
+  if (lineRows.length) await tx.invoiceLine.createMany({ data: lineRows });
 
   const totals = sumTax(computed);
   await tx.invoice.update({
@@ -292,7 +311,7 @@ export async function createInvoiceFromOrder(id: string) {
   });
   if (existing) redirect(`/sales/invoices/${existing.id}`);
 
-  const invoice = await prisma.$transaction(async (tx) =>
+  const invoice = await withTransaction(async (tx) =>
     buildInvoiceFromLines(tx, {
       customerId: so.customerId,
       channel: so.channel,
@@ -313,7 +332,7 @@ export async function createInvoiceFromOrder(id: string) {
 export async function confirmInvoice(id: string) {
   return runAction(async () => {
   await requireRole(OPS);
-  await prisma.$transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     const invoice = await tx.invoice.findUnique({
       where: { id },
       include: { lines: true, customer: true },
@@ -329,48 +348,73 @@ export async function confirmInvoice(id: string) {
       else grouped.set(key, { itemId: line.itemId, qty: line.qty, rate: line.rate });
     }
 
-    if (invoice.kind === "COMMERCIAL") {
-      const extra = await invoiceLineTotal(tx, [...grouped.values()], invoice.customerId);
-      await assertCreditOk(tx, invoice.customerId, extra, id);
-    }
-
     const company = await tx.company.findUnique({ where: { id: "default" } });
     const customer = invoice.customer;
     if (!company || !customer) throw new Error("Company or customer missing");
     const interstate = isInterstate(company.stateCode, customer.stateCode);
+    const items = await tx.item.findMany({
+      where: { id: { in: [...new Set([...grouped.values()].map((l) => l.itemId))] } },
+    });
+    const itemMap = Object.fromEntries(items.map((item) => [item.id, item]));
 
-    const computed = [];
-    for (const line of grouped.values()) {
-      const item = await tx.item.findUnique({ where: { id: line.itemId } });
-      if (!item) throw new Error("Item missing");
-      const picks = await consumeStock(tx, {
+    if (invoice.kind === "COMMERCIAL") {
+      let extra = 0;
+      for (const line of grouped.values()) {
+        const item = itemMap[line.itemId];
+        if (!item) throw new Error("Item missing");
+        extra += taxLine({ qty: line.qty, rate: line.rate, gstRate: item.gstRate }, interstate).amount;
+      }
+      await assertCreditOk(tx, invoice.customerId, extra, id);
+    }
+
+    const groupedLines = [...grouped.values()];
+    const picksByLine = await consumeStockLines(
+      tx,
+      groupedLines.map((line) => ({
         itemId: line.itemId,
         qty: line.qty,
-        moveType: "SALE",
+        moveType: "SALE" as const,
         refType: "INVOICE",
         refId: invoice.id,
         notes: `INV ${invoice.number}`,
-      });
-      for (const pick of picks) {
+      })),
+    );
+    const computed: TaxLine[] = [];
+    const lineRows: {
+      invoiceId: string;
+      itemId: string;
+      batchId: string;
+      qty: number;
+      rate: number;
+      hsn: string;
+      gstRate: number;
+      taxable: number;
+      cgst: number;
+      sgst: number;
+      igst: number;
+    }[] = [];
+    groupedLines.forEach((line, index) => {
+      const item = itemMap[line.itemId];
+      if (!item) throw new Error("Item missing");
+      for (const pick of picksByLine[index] ?? []) {
         const tax = taxLine({ qty: pick.qty, rate: line.rate, gstRate: item.gstRate }, interstate);
         computed.push(tax);
-        await tx.invoiceLine.create({
-          data: {
-            invoiceId: invoice.id,
-            itemId: line.itemId,
-            batchId: pick.batchId,
-            qty: pick.qty,
-            rate: line.rate,
-            hsn: item.hsn,
-            gstRate: item.gstRate,
-            taxable: tax.taxable,
-            cgst: tax.cgst,
-            sgst: tax.sgst,
-            igst: tax.igst,
-          },
+        lineRows.push({
+          invoiceId: invoice.id,
+          itemId: line.itemId,
+          batchId: pick.batchId,
+          qty: pick.qty,
+          rate: line.rate,
+          hsn: item.hsn,
+          gstRate: item.gstRate,
+          taxable: tax.taxable,
+          cgst: tax.cgst,
+          sgst: tax.sgst,
+          igst: tax.igst,
         });
       }
-    }
+    });
+    if (lineRows.length) await tx.invoiceLine.createMany({ data: lineRows });
     const totals = sumTax(computed);
     await tx.invoice.update({
       where: { id },
@@ -411,10 +455,10 @@ export async function createCounterSale(formData: FormData) {
   if (!customer) throw new Error("Customer not found");
   const lines = parseLines(formData);
 
-  const invoice = await prisma.$transaction(async (tx) =>
+  const invoice = await withTransaction(async (tx) =>
     buildInvoiceFromLines(tx, {
       customerId,
-      channel: "B2C",
+      channel: customer.channel ?? "B2C",
       kind: "COMMERCIAL",
       date: formDate(formData, "date", "Date"),
       notes: String(formData.get("notes") ?? ""),
@@ -485,33 +529,46 @@ export async function updateDraftInvoice(id: string, formData: FormData) {
   const invoice = await prisma.invoice.findUnique({ where: { id } });
   if (!invoice || invoice.status !== "DRAFT") throw new Error("Only draft invoices can be edited");
   const lines = parseLines(formData);
-  await prisma.$transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     const company = await tx.company.findUnique({ where: { id: "default" } });
     const customer = await tx.party.findUnique({ where: { id: invoice.customerId } });
     if (!company || !customer) throw new Error("Company or customer missing");
     const interstate = isInterstate(company.stateCode, customer.stateCode);
     await tx.invoiceLine.deleteMany({ where: { invoiceId: id } });
-    const computed = [];
+    const items = await tx.item.findMany({ where: { id: { in: lines.map((l) => l.itemId) } } });
+    const itemMap = Object.fromEntries(items.map((item) => [item.id, item]));
+    const computed: TaxLine[] = [];
+    const lineRows: {
+      invoiceId: string;
+      itemId: string;
+      qty: number;
+      rate: number;
+      hsn: string;
+      gstRate: number;
+      taxable: number;
+      cgst: number;
+      sgst: number;
+      igst: number;
+    }[] = [];
     for (const line of lines) {
-      const item = await tx.item.findUnique({ where: { id: line.itemId } });
+      const item = itemMap[line.itemId];
       if (!item) throw new Error("Item missing");
       const tax = taxLine({ qty: line.qty, rate: line.rate, gstRate: item.gstRate }, interstate);
       computed.push(tax);
-      await tx.invoiceLine.create({
-        data: {
-          invoiceId: id,
-          itemId: line.itemId,
-          qty: line.qty,
-          rate: line.rate,
-          hsn: item.hsn,
-          gstRate: item.gstRate,
-          taxable: tax.taxable,
-          cgst: tax.cgst,
-          sgst: tax.sgst,
-          igst: tax.igst,
-        },
+      lineRows.push({
+        invoiceId: id,
+        itemId: line.itemId,
+        qty: line.qty,
+        rate: line.rate,
+        hsn: item.hsn,
+        gstRate: item.gstRate,
+        taxable: tax.taxable,
+        cgst: tax.cgst,
+        sgst: tax.sgst,
+        igst: tax.igst,
       });
     }
+    if (lineRows.length) await tx.invoiceLine.createMany({ data: lineRows });
     const totals = sumTax(computed);
     await tx.invoice.update({
       where: { id },
@@ -532,7 +589,7 @@ export async function updateDraftInvoice(id: string, formData: FormData) {
 export async function cancelInvoice(id: string) {
   return runAction(async () => {
   await requireRole(OPS);
-  await prisma.$transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     const invoice = await tx.invoice.findUnique({
       where: { id },
       include: { lines: true },
@@ -542,24 +599,21 @@ export async function cancelInvoice(id: string) {
     }
     if (invoice.status === "CONFIRMED") {
       if (invoice.paid > 0.009) throw new Error("Void the payment before cancelling this invoice");
-      for (const line of invoice.lines) {
-        if (!line.batchId) continue;
-        await tx.batch.update({
-          where: { id: line.batchId },
-          data: { qtyOnHand: { increment: line.qty } },
-        });
-        await tx.stockMove.create({
-          data: {
-            itemId: line.itemId,
-            batchId: line.batchId,
-            type: "ADJUST",
-            qty: line.qty,
-            refType: "INVOICE",
-            refId: invoice.id,
-            notes: `Void ${invoice.number}`,
-          },
-        });
-      }
+      await postStockAdjustments(
+        tx,
+        invoice.lines.flatMap((line) =>
+          line.batchId
+            ? [{
+                itemId: line.itemId,
+                batchId: line.batchId,
+                qty: line.qty,
+                refType: "INVOICE",
+                refId: invoice.id,
+                notes: `Void ${invoice.number}`,
+              }]
+            : [],
+        ),
+      );
       if (invoice.salesOrderId) {
         const so = await tx.salesOrder.findUnique({ where: { id: invoice.salesOrderId } });
         if (so?.status === "COMPLETED") {
@@ -585,7 +639,7 @@ export async function repeatLastOrder(customerId: string) {
     orderBy: { date: "desc" },
   });
   if (!last || !last.lines.length) throw new Error("No previous commercial order for this customer");
-  const so = await prisma.$transaction(async (tx) => {
+  const so = await withTransaction(async (tx) => {
     const number = await nextNumberTx(tx, "SO");
     return tx.salesOrder.create({
       data: {
@@ -620,7 +674,7 @@ export async function repeatFromInvoice(invoiceId: string) {
     if (prev) prev.qty += line.qty;
     else grouped.set(line.itemId, { itemId: line.itemId, qty: line.qty, rate: line.rate });
   }
-  const so = await prisma.$transaction(async (tx) => {
+  const so = await withTransaction(async (tx) => {
     const number = await nextNumberTx(tx, "SO");
     return tx.salesOrder.create({
       data: {

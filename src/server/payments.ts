@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { PaymentDirection, PaymentMode } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { FINANCE } from "@/lib/permissions";
 import { parseNum, requireCalendarDate, requiredString, round2 } from "@/lib/utils";
@@ -28,7 +28,7 @@ export async function recordPayment(formData: FormData) {
   const allocTotal = round2(allocs.reduce((s, a) => s + a.amount, 0));
   if (allocTotal - amount > 0.05) throw new Error("Allocations exceed payment amount");
 
-  await prisma.$transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     const number = await nextNumberTx(tx, "PAY");
     const payment = await tx.payment.create({
       data: {
@@ -80,7 +80,7 @@ export async function recordPayment(formData: FormData) {
 export async function voidPayment(id: string) {
   return runAction(async () => {
     await requireRole(FINANCE);
-    await prisma.$transaction(async (tx) => {
+    await withTransaction(async (tx) => {
       const payment = await tx.payment.findUnique({
         where: { id },
         include: { allocations: true },

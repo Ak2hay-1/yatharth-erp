@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { VegMark } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { MANAGEMENT } from "@/lib/permissions";
 import { parseNum, requiredString } from "@/lib/utils";
@@ -77,7 +77,7 @@ export async function saveItemLabel(itemId: string, formData: FormData) {
     data.ingredientStatement = composeStatement(lines);
   }
 
-  await prisma.$transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     const label = await tx.itemLabel.upsert({
       where: { itemId },
       create: { itemId, ...data },

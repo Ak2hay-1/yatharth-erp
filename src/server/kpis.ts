@@ -21,6 +21,7 @@ export async function getMentorKpis(ref = new Date()) {
     wasteMoves,
     complaints,
     parties,
+    invoiceStats,
     sampleOrders,
     commercialOrders,
     finishedItems,
@@ -29,35 +30,79 @@ export async function getMentorKpis(ref = new Date()) {
   ] = await Promise.all([
     prisma.invoice.findMany({
       where: { status: "CONFIRMED", date: { gte: start, lte: end } },
-      include: { customer: true, lines: true, challans: true, salesOrder: true },
+      select: {
+        id: true,
+        kind: true,
+        total: true,
+        date: true,
+        promisedDate: true,
+        customerId: true,
+        lines: { select: { itemId: true, qty: true, taxable: true } },
+        challans: { select: { date: true }, orderBy: { date: "asc" }, take: 1 },
+        salesOrder: { select: { promisedDate: true } },
+      },
     }),
     prisma.productionBatch.findMany({
       where: { status: { not: "CANCELLED" }, mfgDate: { gte: start, lte: end } },
-      include: { workOrder: { include: { recipe: { include: { finishedItem: true } } } } },
+      select: {
+        outputQty: true,
+        wastageQty: true,
+        rejectQty: true,
+        workOrder: {
+          select: { plannedQty: true, recipe: { select: { finishedItemId: true } } },
+        },
+      },
     }),
     prisma.stockMove.findMany({
       where: { type: "WASTE", createdAt: { gte: start, lte: end } },
-      include: { item: true },
+      select: { qty: true, wasteCause: true, item: { select: { type: true } } },
     }),
     prisma.complaint.findMany({
       where: { createdAt: { gte: start, lte: end } },
-      include: { customer: true, item: true },
+      select: { itemId: true },
     }),
     prisma.party.findMany({
       where: { kind: { in: ["CUSTOMER", "BOTH"] } },
-      include: { invoices: { where: { status: "CONFIRMED", kind: "COMMERCIAL" }, select: { date: true } } },
+      select: {
+        id: true,
+        name: true,
+        channel: true,
+        lifecycle: true,
+        createdAt: true,
+        reorderCycleDays: true,
+        lostReason: true,
+      },
+    }),
+    prisma.invoice.groupBy({
+      by: ["customerId"],
+      where: { status: "CONFIRMED", kind: "COMMERCIAL" },
+      _count: { _all: true },
+      _min: { date: true },
+      _max: { date: true },
     }),
     prisma.salesOrder.findMany({
       where: { kind: { in: ["SAMPLE", "TRIAL"] }, date: { gte: start, lte: end }, status: { not: "CANCELLED" } },
-      include: { customer: true },
+      select: { customerId: true },
     }),
     prisma.salesOrder.findMany({
       where: { kind: "COMMERCIAL", date: { gte: start, lte: end }, status: { not: "CANCELLED" } },
+      select: { id: true },
     }),
-    prisma.item.findMany({ where: { type: "FINISHED", isActive: true } }),
+    prisma.item.findMany({
+      where: { type: "FINISHED", isActive: true },
+      select: { id: true, sku: true, name: true, tier: true },
+    }),
     prisma.invoice.findMany({
       where: { status: "CONFIRMED", kind: "COMMERCIAL" },
-      include: { customer: true },
+      select: {
+        id: true,
+        number: true,
+        total: true,
+        paid: true,
+        date: true,
+        customerId: true,
+        customer: { select: { name: true, paymentTermsDays: true, creditLimit: true } },
+      },
     }),
     prisma.monthlyReview.findUnique({ where: { month: key } }),
   ]);
@@ -91,22 +136,29 @@ export async function getMentorKpis(ref = new Date()) {
 
   const complaintPct = pct(complaints.length, commercialInvoices.length);
 
+  const commercialByCustomer = new Map(
+    invoiceStats.map((row) => [
+      row.customerId,
+      { count: row._count._all, first: row._min.date, last: row._max.date },
+    ]),
+  );
   const b2bCustomers = parties.filter((p) => p.channel === "B2B" && p.lifecycle !== "INACTIVE");
-  const withOrders = b2bCustomers.filter((p) => p.invoices.length > 0);
-  const repeaters = withOrders.filter((p) => p.invoices.length >= 2);
+  const withOrders = b2bCustomers.filter((p) => (commercialByCustomer.get(p.id)?.count ?? 0) > 0);
+  const repeaters = withOrders.filter((p) => (commercialByCustomer.get(p.id)?.count ?? 0) >= 2);
   const repeatPct = pct(repeaters.length, withOrders.length);
 
   const newLeads = parties.filter((p) => p.lifecycle === "PROSPECT" && p.createdAt >= start && p.createdAt <= end);
   const newCustomers = parties.filter((p) => {
     if (p.channel !== "B2B") return false;
-    const first = p.invoices.map((i) => i.date).sort((a, b) => a.getTime() - b.getTime())[0];
+    const first = commercialByCustomer.get(p.id)?.first;
     return first ? first >= start && first <= end : false;
   });
 
   const sampleCustomerIds = new Set(sampleOrders.map((o) => o.customerId));
-  const converted = [...sampleCustomerIds].filter((id) =>
-    parties.some((p) => p.id === id && p.invoices.some((i) => i.date >= start)),
-  );
+  const converted = [...sampleCustomerIds].filter((id) => {
+    const last = commercialByCustomer.get(id)?.last;
+    return last ? last >= start : false;
+  });
 
   const unitCosts = await itemUnitCostMap(
     prisma,
@@ -179,8 +231,8 @@ export async function getMentorKpis(ref = new Date()) {
   const overdueList = overdue.filter((i) => i.overdue);
 
   const noReorder = parties.filter((p) => {
-    if (p.channel !== "B2B" || p.invoices.length === 0) return false;
-    const last = p.invoices.map((i) => i.date).sort((a, b) => b.getTime() - a.getTime())[0];
+    if (p.channel !== "B2B") return false;
+    const last = commercialByCustomer.get(p.id)?.last;
     if (!last) return false;
     const cycle = p.reorderCycleDays || 30;
     return addDays(last, cycle + 7) < today;

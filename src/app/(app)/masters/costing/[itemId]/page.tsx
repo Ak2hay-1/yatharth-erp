@@ -12,8 +12,8 @@ import {
   saveItemCosting,
   uploadCostAttachment,
 } from "@/server/item-costing";
-import { getCompanyMarkups } from "@/server/costing";
-import { formatDate } from "@/lib/utils";
+import { getCompanyMarkups, itemUnitCost, shownCosting } from "@/server/costing";
+import { formatDate, money } from "@/lib/utils";
 import { formatFileSize as fmtSize } from "@/lib/document-storage";
 
 export default async function CostingDetailPage({
@@ -32,7 +32,8 @@ export default async function CostingDetailPage({
     include: { costAttachments: { orderBy: { createdAt: "desc" } }, recipeOutput: true },
   });
   if (!item || item.type !== "FINISHED") notFound();
-  const company = await getCompanyMarkups();
+  const [company, computedMfg] = await Promise.all([getCompanyMarkups(), itemUnitCost(prisma, item.id)]);
+  const shown = shownCosting(item, computedMfg, company);
 
   return (
     <div>
@@ -63,17 +64,22 @@ export default async function CostingDetailPage({
                   <SubmitButton>Refresh from last batch</SubmitButton>
                 </ActionForm>
               </div>
+              {shown.missingPurchasePrices ? (
+                <p className="text-sm text-muted">
+                  Ingredient purchase prices are ₹0, so the manufacturing cost is ₹0 until those prices are set.
+                </p>
+              ) : null}
               <CostingCalculator
                 action={saveItemCosting.bind(null, item.id)}
                 company={company}
                 defaults={{
-                  mfgCost: item.mfgCost,
+                  mfgCost: shown.mfgCost,
                   mfgCostSource: item.mfgCostSource,
-                  usp: item.usp,
-                  rateB2b: item.rateB2b,
-                  rateWholesale: item.rateWholesale,
-                  rateDistributor: item.rateDistributor,
-                  rateMrp: item.rateMrp,
+                  usp: shown.usp,
+                  rateB2b: shown.rateB2b,
+                  rateWholesale: shown.rateWholesale,
+                  rateDistributor: shown.rateDistributor,
+                  rateMrp: shown.rateMrp,
                   overrideB2bPct: item.overrideB2bPct,
                   overrideWholesalePct: item.overrideWholesalePct,
                   overrideDistributorPct: item.overrideDistributorPct,
@@ -82,7 +88,40 @@ export default async function CostingDetailPage({
               />
             </>
           ) : (
-            <p className="text-sm text-muted">View only. Ask an Admin to edit rates.</p>
+            <div className="space-y-3">
+              <p className="text-sm text-muted">View only. Ask an Admin to edit rates.</p>
+              {shown.missingPurchasePrices ? (
+                <p className="text-sm text-muted">
+                  Ingredient purchase prices are ₹0, so the manufacturing cost is ₹0 until those prices are set.
+                </p>
+              ) : null}
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt className="text-muted">Mfg cost</dt>
+                  <dd>{money(shown.mfgCost)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">USP</dt>
+                  <dd>{money(shown.usp)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">B2B</dt>
+                  <dd>{money(shown.rateB2b)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Wholesale</dt>
+                  <dd>{money(shown.rateWholesale)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Distributor</dt>
+                  <dd>{money(shown.rateDistributor)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">MRP</dt>
+                  <dd>{money(shown.rateMrp)}</dd>
+                </div>
+              </dl>
+            </div>
           )}
         </Card>
 
