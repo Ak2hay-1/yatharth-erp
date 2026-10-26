@@ -1,6 +1,6 @@
 import { Prisma, type BatchSource, type StockMoveType, type WasteCause } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { qty, round3, startOfTodayIst } from "@/lib/utils";
+import { qty, round3, endOfDayIst, startOfTodayIst } from "@/lib/utils";
 
 type Tx = Prisma.TransactionClient;
 
@@ -64,7 +64,7 @@ async function applyQtyDeltas(tx: Tx, deltas: { batchId: string; qty: number }[]
 export function availableLotWhere(asOf = startOfTodayIst()) {
   return {
     qtyOnHand: { gt: 0 },
-    OR: [{ expiryDate: null }, { expiryDate: { gte: asOf } }],
+    OR: [{ expiryDate: null }, { expiryDate: { gt: endOfDayIst(asOf) } }],
   };
 }
 
@@ -73,7 +73,7 @@ async function throwShortage(tx: Tx, itemId: string, remaining: number): Promise
   const [item, expired] = await Promise.all([
     tx.item.findUnique({ where: { id: itemId }, select: { name: true, unit: true } }),
     tx.batch.aggregate({
-      where: { itemId, qtyOnHand: { gt: 0 }, expiryDate: { lt: asOf } },
+      where: { itemId, qtyOnHand: { gt: 0 }, expiryDate: { lte: endOfDayIst(asOf) } },
       _sum: { qtyOnHand: true },
     }),
   ]);

@@ -2,8 +2,9 @@ import type { Recipe, RecipeLine } from "@prisma/client";
 import { Card, Field, Input } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { ActionForm } from "@/components/action-form";
-import { LineEditor, recipeLineRow, type CatalogItem, type LineRow } from "@/components/line-editor";
+import { LineEditor, type CatalogItem, type LineRow } from "@/components/line-editor";
 import { NamedSearch } from "@/components/named-search";
+import { recipeLineRow } from "@/lib/units";
 
 export { ItemForm, PartyForm, type ItemFormSeed, type PartyFormSeed } from "@/components/item-party-forms";
 
@@ -16,8 +17,18 @@ export function RecipeForm({
   items: CatalogItem[];
   recipe?: Recipe & { lines: RecipeLine[] };
 }) {
-  const finished = items.filter((i) => i.type === "FINISHED");
-  const ingredients = items.filter((i) => i.type !== "FINISHED");
+  const catalog: CatalogItem[] = items.map((item) => ({
+    id: item.id,
+    sku: item.sku,
+    name: item.name,
+    unit: item.unit ?? "",
+    sellingPrice: Number(item.sellingPrice) || 0,
+    purchasePrice: Number(item.purchasePrice) || 0,
+    gstRate: Number(item.gstRate) || 0,
+    type: item.type,
+  }));
+  const finished = catalog.filter((i) => i.type === "FINISHED");
+  const ingredients = catalog.filter((i) => i.type !== "FINISHED");
   const byId = Object.fromEntries(ingredients.map((i) => [i.id, i]));
   const initial: LineRow[] | undefined = recipe?.lines.map((l) => {
     const item = byId[l.itemId];

@@ -152,14 +152,16 @@ export function StatusBadge({
   status,
   paid,
   total,
+  label: labelOverride,
 }: {
   status: string;
   paid?: number;
   total?: number;
+  label?: string;
 }) {
   const settled =
     status === "CONFIRMED" && paid != null && total != null && total > 0 && paid + 0.05 >= total;
-  const label = settled ? "PAID" : status;
+  const text = labelOverride ?? (settled ? "PAID" : status);
   const tone =
     settled || status === "CONFIRMED" || status === "COMPLETED"
       ? "ok"
@@ -168,7 +170,7 @@ export function StatusBadge({
         : status === "CANCELLED"
           ? "bad"
           : "neutral";
-  return <Badge tone={tone}>{label}</Badge>;
+  return <Badge tone={tone}>{text}</Badge>;
 }
 
 export function Table({ children }: { children: ReactNode }) {

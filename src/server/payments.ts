@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { PaymentDirection, PaymentMode } from "@prisma/client";
 import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -73,7 +72,7 @@ export async function recordPayment(formData: FormData) {
   });
 
   revalidatePath("/payments");
-  redirect("/payments?saved=1");
+  return { redirectTo: "/payments?saved=1" };
   });
 }
 

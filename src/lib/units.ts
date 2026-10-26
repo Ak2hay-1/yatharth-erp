@@ -5,8 +5,8 @@ export type UnitFamily = "weight" | "volume";
 const WEIGHT_UNITS = new Set(["g", "kg"]);
 
 /** Normalize unit strings (e.g. mL → ml, litre → L). */
-export function normalizeUnit(unit: string): string {
-  const u = unit.trim();
+export function normalizeUnit(unit: string | null | undefined): string {
+  const u = (unit ?? "").trim();
   if (!u) return u;
   const lower = u.toLowerCase();
   if (lower === "g" || lower === "gram" || lower === "grams") return "g";
@@ -78,6 +78,18 @@ export function formatQtySmart(qty: number, baseUnit: string): { qty: number; un
   const displayUnit = pickDisplayUnit(qty, base);
   const displayQty = fromBaseUnit(qty, base, displayUnit);
   return { qty: displayQty, unit: displayUnit };
+}
+
+export function recipeLineRow(itemId: string, baseQty: number, itemUnit: string) {
+  const displayUnit = pickDisplayUnit(baseQty, itemUnit);
+  const displayQty = fromBaseUnit(baseQty, itemUnit, displayUnit);
+  const allowed = entryUnitsFor(itemUnit);
+  return {
+    itemId,
+    qty: String(displayQty),
+    rate: "0",
+    unit: allowed.length ? displayUnit : undefined,
+  };
 }
 
 export function formatQtySmartString(qty: number, baseUnit: string): string {

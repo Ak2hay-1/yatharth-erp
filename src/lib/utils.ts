@@ -166,6 +166,14 @@ export function monthBoundsIst(ref = new Date()) {
   return { start, end, key: `${year}-${String(month).padStart(2, "0")}` };
 }
 
+/** A lot is not sellable on its expiry day or after. Null expiry never expires. */
+export function isExpiredLot(expiry: Date | string | null | undefined, asOf = startOfTodayIst()) {
+  if (!expiry) return false;
+  const date = typeof expiry === "string" ? new Date(expiry) : expiry;
+  if (Number.isNaN(date.getTime())) return false;
+  return date.getTime() <= endOfDayIst(asOf).getTime();
+}
+
 /** Add calendar days in Asia/Kolkata and return that day's IST midnight. */
 export function addDays(d: Date, days: number) {
   const [year, month, day] = toInputDate(d).split("-").map(Number);

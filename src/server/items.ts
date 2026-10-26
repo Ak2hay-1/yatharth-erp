@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { ItemType, PackType, ProductLane, SkuTier } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -45,7 +44,7 @@ export async function createItem(formData: FormData) {
   await prisma.item.create({ data });
   if (data.type === "FINISHED") void enqueueWebsiteSync("products");
   revalidatePath("/masters/items");
-  redirect("/masters/items");
+  return { redirectTo: "/masters/items" };
   });
 }
 
@@ -80,7 +79,7 @@ export async function updateItem(id: string, formData: FormData) {
     void enqueueWebsiteSync("asset", data.sku);
   }
   revalidatePath("/masters/items");
-  redirect("/masters/items");
+  return { redirectTo: "/masters/items" };
   });
 }
 

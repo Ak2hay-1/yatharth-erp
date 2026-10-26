@@ -1,8 +1,8 @@
-# Shared Vultr VM: run alongside Jersey Commerce (no second Caddy).
-# Jersey's jce-caddy already owns :80/:443 — proxy api.yatharthafoods.in there.
+# Shared VM (95.135.254.46): run alongside other apps (no Caddy of our own).
+# Host nginx owns :80/:443 and proxies api.yatharthafoods.in → 127.0.0.1:3001.
 #
 # Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.shared-vm.yml up -d --build
+#   docker compose -p yatharth-sync -f docker-compose.yml -f docker-compose.shared-vm.yml up -d --build
 
 services:
   postgres:
@@ -31,7 +31,7 @@ services:
       SYNC_SECRET: ${SYNC_SECRET:?Set SYNC_SECRET in .env}
       WEBSITE_ORIGIN: ${WEBSITE_ORIGIN:-https://yatharthafoods.in}
       UPLOAD_DIR: /data/uploads
-      VERCEL_REVALIDATE_URL: ${VERCEL_REVALIDATE_URL:-https://yatharthafoods.in/api/revalidate}
+      VERCEL_REVALIDATE_URL: ${VERCEL_REVALIDATE_URL:-https://www.yatharthafoods.in/api/revalidate}
       REVALIDATE_WEBHOOK_SECRET: ${REVALIDATE_WEBHOOK_SECRET:?Set REVALIDATE_WEBHOOK_SECRET in .env}
       CONTACT_NOTIFY_TO: ${CONTACT_NOTIFY_TO:-}
       CONTACT_NOTIFY_FROM: ${CONTACT_NOTIFY_FROM:-}

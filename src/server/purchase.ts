@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -120,7 +119,7 @@ export async function createPurchaseOrder(formData: FormData) {
     });
   });
   revalidatePath("/purchase/orders");
-  redirect(`/purchase/orders/${po.id}`);
+  return { redirectTo: `/purchase/orders/${po.id}` };
   });
 }
 
@@ -161,7 +160,7 @@ export async function createGoodsReceipt(formData: FormData) {
     });
   });
   revalidatePath("/purchase/grn");
-  redirect(`/purchase/grn/${grn.id}`);
+  return { redirectTo: `/purchase/grn/${grn.id}` };
   });
 }
 
@@ -426,7 +425,7 @@ export async function createSupplierBill(formData: FormData) {
     });
   });
   revalidatePath("/purchase/bills");
-  redirect(`/purchase/bills/${bill.id}`);
+  return { redirectTo: `/purchase/bills/${bill.id}` };
   });
 }
 
@@ -488,6 +487,6 @@ export async function adjustStock(formData: FormData) {
     }
   });
   revalidatePath("/inventory/stock");
-  redirect("/inventory/stock?adjusted=1");
+  return { redirectTo: "/inventory/stock?adjusted=1" };
   });
 }

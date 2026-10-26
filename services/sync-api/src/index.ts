@@ -17,6 +17,10 @@ const app = Fastify({
 
 app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
   (req as { rawBody?: string }).rawBody = body as string;
+  if (!(body as string).trim()) {
+    done(null, undefined);
+    return;
+  }
   try {
     done(null, JSON.parse(body as string));
   } catch (err) {

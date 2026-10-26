@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { VegMark } from "@prisma/client";
 import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -100,7 +99,7 @@ export async function saveItemLabel(itemId: string, formData: FormData) {
   revalidatePath("/masters/labelling");
   revalidatePath(`/masters/labelling/${itemId}`);
   revalidatePath(`/print/label/${itemId}`);
-  redirect(`/masters/labelling/${itemId}?saved=1`);
+  return { redirectTo: `/masters/labelling/${itemId}?saved=1` };
 }
 
 export async function ensureItemLabel(itemId: string) {
@@ -112,5 +111,5 @@ export async function ensureItemLabel(itemId: string) {
     update: {},
   });
   revalidatePath("/masters/labelling");
-  redirect(`/masters/labelling/${itemId}`);
+  return { redirectTo: `/masters/labelling/${itemId}` };
 }

@@ -4,7 +4,7 @@ import { Card, PageHeader, Table, Td, Th, Empty, Badge, LinkButton } from "@/com
 import { ListFilters } from "@/components/list-filters";
 import { UnitConverter } from "@/components/unit-converter";
 import { parseListQuery } from "@/lib/filters";
-import { qty, startOfTodayIst } from "@/lib/utils";
+import { isExpiredLot, qty, startOfTodayIst } from "@/lib/utils";
 
 export default async function StockPage({
   searchParams,
@@ -49,10 +49,10 @@ export default async function StockPage({
               {items.map((item) => {
                 const today = startOfTodayIst();
                 const available = item.batches
-                  .filter((b) => b.qtyOnHand > 0 && (!b.expiryDate || b.expiryDate >= today))
+                  .filter((b) => b.qtyOnHand > 0 && !isExpiredLot(b.expiryDate, today))
                   .reduce((s, b) => s + b.qtyOnHand, 0);
                 const expiredQty = item.batches
-                  .filter((b) => b.qtyOnHand > 0 && b.expiryDate && b.expiryDate < today)
+                  .filter((b) => b.qtyOnHand > 0 && isExpiredLot(b.expiryDate, today))
                   .reduce((s, b) => s + b.qtyOnHand, 0);
                 const low = item.reorderLevel > 0 && available <= item.reorderLevel;
                 return (

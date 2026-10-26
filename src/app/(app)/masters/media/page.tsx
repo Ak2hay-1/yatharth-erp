@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { MANAGEMENT, OPS, can } from "@/lib/permissions";
-import { Card, Field, Input, PageHeader, Select, Textarea, Empty, Button } from "@/components/ui";
-import { SubmitButton } from "@/components/submit-button";
+import { Card, PageHeader, Empty, Button } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
-import { NamedSearch } from "@/components/named-search";
-import { createProductAsset, deleteProductAsset } from "@/server/product-assets";
+import { ProductAssetUploadForm } from "@/components/product-asset-upload-form";
+import { deleteProductAsset } from "@/server/product-assets";
 import { formatDate } from "@/lib/utils";
 import { formatFileSize } from "@/lib/document-storage";
 import { PRODUCT_ASSET_KINDS, labelOf } from "@/lib/labels";
@@ -58,45 +57,7 @@ export default async function MediaPage({
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="h-fit p-6">
           <h2 className="font-display mb-4 text-lg">Upload</h2>
-          <ActionForm action={createProductAsset} className="space-y-3">
-            <Field label="Product">
-              <NamedSearch
-                name="itemId"
-                required
-                defaultValue={filterItemId ?? ""}
-                placeholder="Type SKU or name"
-                create="item"
-                canCreate={canManage}
-                defaultType="FINISHED"
-                items={items}
-              />
-            </Field>
-            <Field label="Kind">
-              <Select name="kind" defaultValue="PACK_SHOT">
-                {PRODUCT_ASSET_KINDS.map((k) => (
-                  <option key={k.value} value={k.value}>
-                    {k.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Title">
-              <Input name="title" placeholder="Front pack — Apr 2026" />
-            </Field>
-            <Field label="File">
-              <Input
-                name="file"
-                type="file"
-                required
-                accept=".png,.jpg,.jpeg,.webp,.gif,.pdf"
-                className="file:mr-3 file:rounded-md file:border-0 file:bg-forest file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
-              />
-            </Field>
-            <Field label="Notes">
-              <Textarea name="notes" />
-            </Field>
-            <SubmitButton>Upload</SubmitButton>
-          </ActionForm>
+          <ProductAssetUploadForm items={items} filterItemId={filterItemId} canManage={canManage} />
         </Card>
 
         <div className="lg:col-span-2">

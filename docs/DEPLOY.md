@@ -56,8 +56,9 @@ Create a **separate** Vercel project from the website project.
 ### Provision
 
 1. **Neon PostgreSQL** — project **Yathartha foods** (`solitary-pine-12141341`). Use pooled `DATABASE_URL` and direct `DATABASE_URL_UNPOOLED` (both from `neon env pull` or Neon dashboard).
-2. **Vercel Blob** — create store; copy `BLOB_READ_WRITE_TOKEN`
-3. Set environment variables:
+2. **Vercel Blob** — create store; copy `BLOB_READ_WRITE_TOKEN` (SOPs, complaints, and costing files).
+3. **Cloudflare R2** — private bucket and an API token with Object Read & Write, for product images. No public `r2.dev` domain is required.
+4. Set environment variables:
 
 ```
 DATABASE_URL=<Neon pooled connection string>
@@ -66,23 +67,33 @@ NEON_BRANCH=production
 AUTH_SECRET=<random>
 AUTH_URL=https://erp.yatharthafoods.in
 BLOB_READ_WRITE_TOKEN=<from Vercel Blob>
+R2_ACCOUNT_ID=<Cloudflare account id>
+R2_ACCESS_KEY_ID=<R2 API token access key>
+R2_SECRET_ACCESS_KEY=<R2 API token secret>
+R2_BUCKET=<bucket name>
 CRON_SECRET=<random>
 YATHARTH_DEPLOYMENT_ID=yatharth-erp-prod
 SETUP_SECRET=<random, remove after seeding>
 ```
 
-4. Deploy from GitHub
-5. DNS: Cloudflare **CNAME** `erp` → `cname.vercel-dns.com` (or follow Vercel domain wizard)
-6. **Seed** (once, after first successful deploy):
+5. Deploy from GitHub
+6. DNS: Cloudflare **CNAME** `erp` → `cname.vercel-dns.com` (or follow Vercel domain wizard)
+7. **Seed** (once, after first successful deploy):
 
 ```powershell
 $secret = "<SETUP_SECRET>"
 Invoke-RestMethod -Method POST -Uri "https://erp.yatharthafoods.in/api/setup/seed" -Headers @{ Authorization = "Bearer $secret" }
 ```
 
-7. Remove `SETUP_SECRET` from Vercel env after seeding
-8. Sign in: `admin@yatharthafoods.in` / `Yatharth@Owner1` — **change password**
-9. Settings → Website sync → enable, API URL `https://api.yatharthafoods.in`, paste `SYNC_SECRET` → **Publish to website**
+8. Remove `SETUP_SECRET` from Vercel env after seeding
+9. Backfill seeded product photos into R2 (once, from a machine with `DATABASE_URL` and the four `R2_*` vars):
+
+```powershell
+npx tsx scripts/backfill-product-images-r2.ts
+```
+
+10. Sign in: `admin@yatharthafoods.in` / `Yatharth@Owner1` — **change password**
+11. Settings → Website sync → enable, API URL `https://api.yatharthafoods.in`, paste `SYNC_SECRET` → **Publish to website**
 
 Verify: `powershell -File scripts/Verify-ErpHealth.ps1`
 

@@ -55,7 +55,9 @@ export default async function EditRecipePage({
   try {
     const parsed = JSON.parse(translation?.ingredientNamesJson || "{}") as unknown;
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      ingredientOverrides = parsed as Record<string, string>;
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value === "string") ingredientOverrides[key] = value;
+      }
     }
   } catch {
     ingredientOverrides = {};
@@ -128,9 +130,9 @@ export default async function EditRecipePage({
           outputQty={recipe.outputQty}
           outputUnit={recipe.finishedItem.unit}
           lines={recipe.lines.map((l) => ({
-            name: (ingredientOverrides[l.itemId] || l.item?.name) ?? "Ingredient",
-            unit: l.item.unit,
-            qty: l.qty,
+            name: ingredientOverrides[l.itemId] || l.item?.name || "Ingredient",
+            unit: l.item?.unit || "",
+            qty: Number(l.qty) || 0,
           }))}
         />
       </div>

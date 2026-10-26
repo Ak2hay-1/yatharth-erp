@@ -7,7 +7,7 @@ import { Button, Input } from "@/components/ui";
 import { CreatableItemSelect } from "@/components/creatable-selects";
 import type { CatalogItem } from "@/components/catalog-types";
 import type { StockHint } from "@/server/stock";
-import { entryUnitsFor, fromBaseUnit, pickDisplayUnit } from "@/lib/units";
+import { entryUnitsFor, pickDisplayUnit } from "@/lib/units";
 import { formatDate, qty } from "@/lib/utils";
 
 export type { CatalogItem };
@@ -241,16 +241,4 @@ export function LineEditor({
       </Button>
     </div>
   );
-}
-
-export function recipeLineRow(itemId: string, baseQty: number, itemUnit: string): LineRow {
-  const displayUnit = pickDisplayUnit(baseQty, itemUnit);
-  const displayQty = fromBaseUnit(baseQty, itemUnit, displayUnit);
-  const allowed = entryUnitsFor(itemUnit);
-  return {
-    itemId,
-    qty: String(displayQty),
-    rate: "0",
-    unit: allowed.length ? displayUnit : undefined,
-  };
 }

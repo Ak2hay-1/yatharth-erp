@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { BuyerCluster, CustomerChannel, PartyKind, PartyLifecycle } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -51,7 +50,7 @@ export async function createParty(formData: FormData) {
   await requireRole(MANAGEMENT);
   await prisma.party.create({ data: partyData(formData) });
   revalidatePath("/masters/parties");
-  redirect("/masters/parties");
+  return { redirectTo: "/masters/parties" };
   });
 }
 
@@ -77,7 +76,7 @@ export async function updateParty(id: string, formData: FormData) {
   await requireRole(MANAGEMENT);
   await prisma.party.update({ where: { id }, data: partyData(formData) });
   revalidatePath("/masters/parties");
-  redirect("/masters/parties");
+  return { redirectTo: "/masters/parties" };
   });
 }
 

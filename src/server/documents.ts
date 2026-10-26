@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { ContentLocale, DocumentCategory } from "@prisma/client";
 import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -73,7 +72,7 @@ export async function createPlantDocument(formData: FormData) {
 
   const base = listPath(category);
   revalidatePath(base);
-  redirect(`${base}/${rowId}`);
+  return { redirectTo: `${base}/${rowId}` };
 }
 
 export async function updatePlantDocument(id: string, formData: FormData) {
@@ -125,7 +124,7 @@ export async function updatePlantDocument(id: string, formData: FormData) {
   const locale = String(formData.get("viewLocale") ?? "");
   revalidatePath(base);
   revalidatePath(`${base}/${id}`);
-  if (locale) redirect(`${base}/${id}?locale=${locale}`);
+  if (locale) return { redirectTo: `${base}/${id}?locale=${locale}` };
 }
 
 export async function saveSopTranslation(documentId: string, formData: FormData) {
@@ -133,8 +132,7 @@ export async function saveSopTranslation(documentId: string, formData: FormData)
   const locale = parseLocale(formData.get("locale"));
   if (locale === "en_IN") {
     // Default locale lives on PlantDocument itself
-    await updatePlantDocument(documentId, formData);
-    return;
+    return updatePlantDocument(documentId, formData);
   }
   await prisma.sopTranslation.upsert({
     where: { documentId_locale: { documentId, locale } },
@@ -154,7 +152,7 @@ export async function saveSopTranslation(documentId: string, formData: FormData)
     },
   });
   revalidatePath(`/quality/sops/${documentId}`);
-  redirect(`/quality/sops/${documentId}?locale=${locale}`);
+  return { redirectTo: `/quality/sops/${documentId}?locale=${locale}` };
 }
 
 export async function deletePlantDocument(id: string) {
@@ -167,5 +165,5 @@ export async function deletePlantDocument(id: string) {
 
   const base = listPath(existing.category);
   revalidatePath(base);
-  redirect(base);
+  return { redirectTo: base };
 }

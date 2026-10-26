@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { MfgCostSource } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -57,7 +56,7 @@ export async function saveItemCosting(itemId: string, formData: FormData) {
   revalidatePath("/masters/costing");
   revalidatePath(`/masters/costing/${itemId}`);
   revalidatePath(`/masters/items/${itemId}`);
-  redirect(`/masters/costing/${itemId}?saved=1`);
+  return { redirectTo: `/masters/costing/${itemId}?saved=1` };
 }
 
 export async function refreshMfgCost(itemId: string, formData: FormData) {
@@ -99,7 +98,7 @@ export async function refreshMfgCost(itemId: string, formData: FormData) {
   void enqueueWebsiteSync("products");
   revalidatePath(`/masters/costing/${itemId}`);
   revalidatePath("/masters/costing");
-  redirect(`/masters/costing/${itemId}?saved=1`);
+  return { redirectTo: `/masters/costing/${itemId}?saved=1` };
 }
 
 export async function uploadCostAttachment(itemId: string, formData: FormData) {
@@ -123,7 +122,7 @@ export async function uploadCostAttachment(itemId: string, formData: FormData) {
     throw err;
   }
   revalidatePath(`/masters/costing/${itemId}`);
-  redirect(`/masters/costing/${itemId}`);
+  return { redirectTo: `/masters/costing/${itemId}` };
 }
 
 export async function deleteCostAttachment(id: string) {

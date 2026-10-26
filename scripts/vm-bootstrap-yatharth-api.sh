@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Bootstrap Yatharth sync-api on the shared Vultr VM (alongside Jersey Commerce).
+# Bootstrap Yatharth sync-api on the old Vultr VM (45.76.61.16, Jersey Caddy) — retired.
+# Current host is 95.135.254.46 with host nginx; see docs/GO_LIVE_CHECKLIST.md section B.
 # Run ON the VM as root:
 #   bash /tmp/vm-bootstrap-yatharth-api.sh
 set -euo pipefail

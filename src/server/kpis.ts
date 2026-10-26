@@ -114,7 +114,7 @@ export async function getMentorKpis(ref = new Date()) {
     commercialInvoices.flatMap((i) => i.lines.map((l) => ({ itemId: l.itemId, qty: l.qty, taxable: l.taxable }))),
   );
 
-  const planned = production.reduce((s, p) => s + p.workOrder.plannedQty, 0);
+  const planned = production.reduce((s, p) => s + (p.workOrder?.plannedQty ?? 0), 0);
   const good = production.reduce((s, p) => s + p.outputQty, 0);
   const prodWaste = production.reduce((s, p) => s + p.wastageQty, 0);
   const reject = production.reduce((s, p) => s + p.rejectQty, 0);
@@ -172,8 +172,8 @@ export async function getMentorKpis(ref = new Date()) {
       const cost = qtySold * unitCost;
       const contribution = revenue - cost;
       const contributionPct = pct(contribution, revenue);
-      const skuProd = production.filter((p) => p.workOrder.recipe.finishedItemId === item.id);
-      const skuPlanned = skuProd.reduce((s, p) => s + p.workOrder.plannedQty, 0);
+      const skuProd = production.filter((p) => p.workOrder?.recipe?.finishedItemId === item.id);
+      const skuPlanned = skuProd.reduce((s, p) => s + (p.workOrder?.plannedQty ?? 0), 0);
       const skuGood = skuProd.reduce((s, p) => s + p.outputQty, 0);
       const skuYield = pct(skuGood, skuPlanned);
       const buyers = new Set(commercialInvoices.filter((inv) => inv.lines.some((l) => l.itemId === item.id)).map((i) => i.customerId));

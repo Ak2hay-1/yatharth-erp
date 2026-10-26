@@ -12,7 +12,7 @@ export default async function WorkOrdersPage() {
     <div>
       <PageHeader
         title="Work orders"
-        subtitle="Plan a batch, then produce and consume the recipe by FEFO."
+        subtitle="Plan a batch, start it, then complete it. Raw materials are consumed by FEFO."
         actions={<LinkButton href="/production/orders/new">New work order</LinkButton>}
       />
       <Card className="p-2">
@@ -41,7 +41,7 @@ export default async function WorkOrdersPage() {
                   <Td>{qty(r.plannedQty, r.recipe.finishedItem.unit)}</Td>
                   <Td>{formatDate(r.date)}</Td>
                   <Td>
-                    <StatusBadge status={r.status} />
+                    <StatusBadge status={r.status} label={r.status === "CONFIRMED" ? "In progress" : undefined} />
                   </Td>
                 </tr>
               ))}

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, Table, Td, Th, Empty, Badge } from "@/components/ui";
 import { ListFilters } from "@/components/list-filters";
 import { parseListQuery } from "@/lib/filters";
-import { addDays, endOfDayIst, formatDate, qty, startOfTodayIst } from "@/lib/utils";
+import { addDays, endOfDayIst, formatDate, isExpiredLot, qty, startOfTodayIst } from "@/lib/utils";
 
 export default async function BatchesPage({
   searchParams,
@@ -24,7 +24,7 @@ export default async function BatchesPage({
     orderBy: [{ expiryDate: "asc" }, { item: { name: "asc" } }],
   });
   const in7 = endOfDayIst(addDays(today, 7));
-  const expiredLots = batches.filter((b) => b.expiryDate && b.expiryDate < today);
+  const expiredLots = batches.filter((b) => isExpiredLot(b.expiryDate, today));
   const expiredQty = expiredLots.reduce((s, b) => s + b.qtyOnHand, 0);
   return (
     <div>
@@ -51,7 +51,7 @@ export default async function BatchesPage({
             <tbody>
               {batches.map((b) => {
                 const exp = b.expiryDate ? new Date(b.expiryDate) : null;
-                const expired = exp && exp < today;
+                const expired = isExpiredLot(exp, today);
                 const soon = exp && exp <= in7 && !expired;
                 return (
                   <tr key={b.id}>

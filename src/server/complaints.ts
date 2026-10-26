@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { ComplaintIssue, ComplaintStatus } from "@prisma/client";
 import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -52,7 +51,7 @@ export async function createComplaint(formData: FormData) {
   });
   await saveComplaintFiles(row.id, formData);
   revalidatePath("/quality/complaints");
-  redirect(`/quality/complaints/${row.id}`);
+  return { redirectTo: `/quality/complaints/${row.id}` };
 }
 
 export async function updateComplaint(id: string, formData: FormData) {

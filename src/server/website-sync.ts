@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/session";
 import { SUPER_ADMIN_ONLY } from "@/lib/permissions";
 import {
@@ -40,17 +39,17 @@ export async function saveWebsiteSync(formData: FormData) {
   if (intent === "publish") {
     await publishWebsiteCatalog();
     revalidatePath("/settings");
-    redirect("/settings?saved=sync-publish");
+    return { redirectTo: "/settings?saved=sync-publish" };
   }
 
   if (intent === "flush") {
     await flushWebsiteSyncQueue("manual");
     revalidatePath("/settings");
-    redirect("/settings?saved=sync-flush");
+    return { redirectTo: "/settings?saved=sync-flush" };
   }
 
   revalidatePath("/settings");
-  redirect("/settings?saved=sync");
+  return { redirectTo: "/settings?saved=sync" };
 }
 
 export async function getWebsiteInquiriesAction() {

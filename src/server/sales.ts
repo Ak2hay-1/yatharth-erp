@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { CustomerChannel, Prisma, SalesOrderKind } from "@prisma/client";
 import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -76,7 +75,7 @@ export async function createSalesOrder(formData: FormData) {
   });
   revalidatePath("/sales/orders");
   revalidatePath("/sales/samples");
-  redirect(`/sales/orders/${so.id}`);
+  return { redirectTo: `/sales/orders/${so.id}` };
   });
 }
 
@@ -309,7 +308,7 @@ export async function createInvoiceFromOrder(id: string) {
   const existing = await prisma.invoice.findFirst({
     where: { salesOrderId: id, status: { not: "CANCELLED" } },
   });
-  if (existing) redirect(`/sales/invoices/${existing.id}`);
+  if (existing) return { redirectTo: `/sales/invoices/${existing.id}` };
 
   const invoice = await withTransaction(async (tx) =>
     buildInvoiceFromLines(tx, {
@@ -325,7 +324,7 @@ export async function createInvoiceFromOrder(id: string) {
     }),
   );
   revalidatePath("/sales/invoices");
-  redirect(`/sales/invoices/${invoice.id}`);
+  return { redirectTo: `/sales/invoices/${invoice.id}` };
   });
 }
 
@@ -467,7 +466,7 @@ export async function createCounterSale(formData: FormData) {
     }),
   );
   revalidatePath("/sales/invoices");
-  redirect(`/print/invoice/${invoice.id}`);
+  return { redirectTo: `/print/invoice/${invoice.id}` };
   });
 }
 
@@ -656,7 +655,7 @@ export async function repeatLastOrder(customerId: string) {
     });
   });
   revalidatePath("/sales/orders");
-  redirect(`/sales/orders/${so.id}`);
+  return { redirectTo: `/sales/orders/${so.id}` };
   });
 }
 
@@ -691,7 +690,7 @@ export async function repeatFromInvoice(invoiceId: string) {
     });
   });
   revalidatePath("/sales/orders");
-  redirect(`/sales/orders/${so.id}`);
+  return { redirectTo: `/sales/orders/${so.id}` };
   });
 }
 

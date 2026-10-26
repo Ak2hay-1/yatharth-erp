@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { hash } from "bcryptjs";
 import type { Role } from "@prisma/client";
@@ -79,7 +78,7 @@ export async function saveCompany(formData: FormData) {
   });
   void enqueueWebsiteSync("company");
   revalidatePath("/settings");
-  redirect("/settings?saved=1");
+  return { redirectTo: "/settings?saved=1" };
 }
 
 export async function createUser(formData: FormData) {
@@ -100,7 +99,7 @@ export async function createUser(formData: FormData) {
     },
   });
   revalidatePath("/settings/users");
-  redirect("/settings/users");
+  return { redirectTo: "/settings/users" };
 }
 
 export async function updateUser(id: string, formData: FormData) {
@@ -128,7 +127,7 @@ export async function updateUser(id: string, formData: FormData) {
     },
   });
   revalidatePath("/settings/users");
-  redirect("/settings/users");
+  return { redirectTo: "/settings/users" };
 }
 
 export async function toggleUserActive(id: string) {
@@ -153,7 +152,7 @@ export async function saveCostingDefaults(formData: FormData) {
   });
   revalidatePath("/settings");
   revalidatePath("/masters/costing");
-  redirect("/settings?saved=1");
+  return { redirectTo: "/settings?saved=1" };
 }
 
 export async function getCompany() {

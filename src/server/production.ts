@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { OPS } from "@/lib/permissions";
@@ -31,7 +30,7 @@ export async function createWorkOrder(formData: FormData) {
     });
   });
   revalidatePath("/production/orders");
-  redirect(`/production/orders/${wo.id}`);
+  return { redirectTo: `/production/orders/${wo.id}` };
   });
 }
 
@@ -49,6 +48,21 @@ export async function cancelWorkOrder(id: string) {
     }
     if (wo.status === "CANCELLED") throw new Error("Work order is already cancelled");
     await prisma.workOrder.update({ where: { id }, data: { status: "CANCELLED" } });
+    revalidatePath(`/production/orders/${id}`);
+    revalidatePath("/production/orders");
+  });
+}
+
+export async function startWorkOrder(id: string) {
+  return runAction(async () => {
+    await requireRole(OPS);
+    const wo = await prisma.workOrder.findUnique({ where: { id } });
+    if (!wo) throw new Error("Work order not found");
+    if (wo.status === "CANCELLED") throw new Error("Work order is cancelled");
+    if (wo.status === "COMPLETED") throw new Error("Work order is already complete");
+    if (wo.status === "DRAFT") {
+      await prisma.workOrder.update({ where: { id }, data: { status: "CONFIRMED" } });
+    }
     revalidatePath(`/production/orders/${id}`);
     revalidatePath("/production/orders");
   });
@@ -164,6 +178,7 @@ export async function produceBatch(formData: FormData) {
     });
     if (!wo) throw new Error("Work order not found");
     if (wo.status === "CANCELLED") throw new Error("Work order is cancelled");
+    if (wo.status !== "CONFIRMED") throw new Error("Start the work order before completing it");
     if (wo.recipe.outputQty <= 0) throw new Error("Recipe output quantity is invalid");
 
     const scale = (outputQty + wastageQty + rejectQty) / wo.recipe.outputQty;
@@ -248,6 +263,6 @@ export async function produceBatch(formData: FormData) {
 
   revalidatePath("/production/orders");
   revalidatePath("/inventory/stock");
-  redirect(`/production/batches/${produced.id}`);
+  return { redirectTo: `/production/batches/${produced.id}` };
   });
 }

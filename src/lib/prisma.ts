@@ -12,7 +12,7 @@ export function poolerDatabaseUrl(raw: string | undefined): string | undefined {
   const base = q === -1 ? raw : raw.slice(0, q);
   const params = new URLSearchParams(q === -1 ? "" : raw.slice(q + 1));
   if (!params.has("pgbouncer")) params.set("pgbouncer", "true");
-  if (!params.has("connection_limit")) params.set("connection_limit", "1");
+  if (!params.has("connection_limit")) params.set("connection_limit", "5");
   const next = params.toString();
   return next ? `${base}?${next}` : base;
 }

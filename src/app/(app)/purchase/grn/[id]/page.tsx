@@ -89,7 +89,7 @@ export default async function GrnDetailPage({ params }: { params: Promise<{ id: 
             </tbody>
           </Table>
         )}
-        {grn.status === "CONFIRMED" && grn.bills.filter((b) => b.status !== "CANCELLED").length === 0 ? (
+        {grn.status === "CONFIRMED" ? (
           <div className="mt-4">
             <ActionForm action={cancelGoodsReceipt.bind(null, grn.id)}>
               <SubmitButton variant="danger">Void GRN</SubmitButton>

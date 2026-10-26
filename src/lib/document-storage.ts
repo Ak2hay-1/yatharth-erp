@@ -3,6 +3,7 @@ import path from "path";
 import { randomBytes } from "crypto";
 import { del, put } from "@vercel/blob";
 import { getDataDir } from "@/lib/data-dir";
+import { deleteR2Object, getR2Object, isR2StorageKey, r2ObjectKey } from "@/lib/r2";
 
 export const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024;
 
@@ -101,6 +102,11 @@ export async function saveDocumentFile(file: File): Promise<{
 export async function removeDocumentFile(storageKey: string) {
   if (!storageKey) return;
 
+  if (isR2StorageKey(storageKey)) {
+    await deleteR2Object(r2ObjectKey(storageKey));
+    return;
+  }
+
   if (useBlobStorage() && storageKey.startsWith("http")) {
     await del(storageKey);
     return;
@@ -116,6 +122,10 @@ export async function removeDocumentFile(storageKey: string) {
 
 export async function readDocumentBytes(storageKey: string): Promise<Buffer> {
   if (!storageKey) throw new Error("Missing storage key.");
+
+  if (isR2StorageKey(storageKey)) {
+    return getR2Object(r2ObjectKey(storageKey));
+  }
 
   if (useBlobStorage() && storageKey.startsWith("http")) {
     const res = await fetch(storageKey);

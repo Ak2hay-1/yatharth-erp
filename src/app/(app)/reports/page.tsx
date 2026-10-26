@@ -26,35 +26,89 @@ export default async function ReportsPage({
   const [invoices, bills, batches, production, wasteMoves, payments] = await Promise.all([
     prisma.invoice.findMany({
       where: { status: "CONFIRMED" },
-      include: { customer: true },
+      select: {
+        id: true,
+        number: true,
+        date: true,
+        kind: true,
+        taxable: true,
+        total: true,
+        customer: { select: { name: true, gstin: true } },
+      },
       orderBy: { date: "desc" },
       take: 100,
     }),
     prisma.supplierBill.findMany({
       where: { status: { not: "CANCELLED" } },
-      include: { supplier: true },
+      select: {
+        id: true,
+        number: true,
+        date: true,
+        taxable: true,
+        cgst: true,
+        sgst: true,
+        igst: true,
+        total: true,
+        paid: true,
+        supplier: { select: { name: true } },
+      },
       orderBy: { date: "desc" },
       take: 100,
     }),
     prisma.batch.findMany({
       where: { qtyOnHand: { gt: 0 }, expiryDate: { lte: in30 } },
-      include: { item: true },
+      select: {
+        id: true,
+        lotNo: true,
+        qtyOnHand: true,
+        expiryDate: true,
+        item: { select: { name: true, unit: true } },
+      },
       orderBy: { expiryDate: "asc" },
       take: 100,
     }),
     prisma.productionBatch.findMany({
-      include: { workOrder: { include: { recipe: { include: { finishedItem: true } } } } },
+      select: {
+        id: true,
+        number: true,
+        outputQty: true,
+        wastageQty: true,
+        rejectQty: true,
+        unitCost: true,
+        workOrder: {
+          select: {
+            plannedQty: true,
+            recipe: { select: { finishedItem: { select: { name: true } } } },
+          },
+        },
+      },
       orderBy: { mfgDate: "desc" },
       take: 50,
     }),
     prisma.stockMove.findMany({
       where: { type: "WASTE" },
-      include: { item: true },
+      select: {
+        id: true,
+        createdAt: true,
+        wasteCause: true,
+        qty: true,
+        notes: true,
+        item: { select: { name: true, unit: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
     prisma.payment.findMany({
-      include: { party: true, allocations: true },
+      select: {
+        id: true,
+        number: true,
+        direction: true,
+        date: true,
+        mode: true,
+        amount: true,
+        party: { select: { name: true } },
+        allocations: { select: { amount: true } },
+      },
       orderBy: { date: "desc" },
       take: 200,
     }),
@@ -190,7 +244,7 @@ export default async function ReportsPage({
                   .map(({ p, allocated, open }) => (
                     <tr key={p.id}>
                       <Td>{p.number}</Td>
-                      <Td>{p.party.name}</Td>
+                      <Td>{p.party?.name ?? "—"}</Td>
                       <Td>{p.direction}</Td>
                       <Td>{formatDate(p.date)}</Td>
                       <Td>{p.mode}</Td>
@@ -231,8 +285,8 @@ export default async function ReportsPage({
                       <div className="text-xs text-muted">{formatDate(i.date)}</div>
                     </Td>
                     <Td>{i.kind}</Td>
-                    <Td>{i.customer.name}</Td>
-                    <Td className="font-mono text-xs">{i.customer.gstin || "B2C"}</Td>
+                    <Td>{i.customer?.name ?? "—"}</Td>
+                    <Td className="font-mono text-xs">{i.customer?.gstin || "B2C"}</Td>
                     <Td>{money(i.taxable)}</Td>
                     <Td>{money(i.total)}</Td>
                   </tr>
@@ -268,7 +322,7 @@ export default async function ReportsPage({
                       {b.number}
                       <div className="text-xs text-muted">{formatDate(b.date)}</div>
                     </Td>
-                    <Td>{b.supplier.name}</Td>
+                    <Td>{b.supplier?.name ?? "—"}</Td>
                     <Td>{money(b.taxable)}</Td>
                     <Td>{money(b.cgst + b.sgst + b.igst)}</Td>
                     <Td>{money(b.total)}</Td>
@@ -302,12 +356,12 @@ export default async function ReportsPage({
               </thead>
               <tbody>
                 {production.map((p) => {
-                  const planned = p.workOrder.plannedQty;
+                  const planned = p.workOrder?.plannedQty ?? 0;
                   const y = planned > 0 ? Math.round((p.outputQty / planned) * 1000) / 10 : 0;
                   return (
                     <tr key={p.id}>
                       <Td>{p.number}</Td>
-                      <Td>{p.workOrder.recipe.finishedItem.name}</Td>
+                      <Td>{p.workOrder?.recipe?.finishedItem?.name ?? "—"}</Td>
                       <Td>{qty(p.outputQty)}</Td>
                       <Td>{qty(p.wastageQty)}</Td>
                       <Td>{qty(p.rejectQty)}</Td>
@@ -343,9 +397,9 @@ export default async function ReportsPage({
                 {wasteMoves.map((m) => (
                   <tr key={m.id}>
                     <Td>{formatDate(m.createdAt)}</Td>
-                    <Td>{m.item.name}</Td>
+                    <Td>{m.item?.name ?? "—"}</Td>
                     <Td>{labelOf(WASTE_CAUSES, m.wasteCause ?? "OTHER")}</Td>
-                    <Td>{qty(Math.abs(m.qty), m.item.unit)}</Td>
+                    <Td>{qty(Math.abs(m.qty), m.item?.unit)}</Td>
                     <Td className="text-xs text-muted">{m.notes}</Td>
                   </tr>
                 ))}

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card, Field, Input, PageHeader, Table, Td, Th, StatusBadge, Select } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
-import { cancelWorkOrder, produceBatch } from "@/server/production";
+import { cancelWorkOrder, produceBatch, reverseWorkOrder, startWorkOrder } from "@/server/production";
 import { getStockHints } from "@/server/stock";
 import { ActionForm } from "@/components/action-form";
 import { addDays, formatDate, qty, toInputDate } from "@/lib/utils";
@@ -25,7 +25,9 @@ export default async function WorkOrderDetailPage({ params }: { params: Promise<
       <PageHeader
         title={wo.number}
         subtitle={`${wo.recipe.finishedItem.name} · planned ${qty(wo.plannedQty, wo.recipe.finishedItem.unit)}`}
-        actions={<StatusBadge status={wo.status} />}
+        actions={
+          <StatusBadge status={wo.status} label={wo.status === "CONFIRMED" ? "In progress" : undefined} />
+        }
       />
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="p-5">
@@ -62,7 +64,22 @@ export default async function WorkOrderDetailPage({ params }: { params: Promise<
             </tbody>
           </Table>
         </Card>
-        {wo.status !== "COMPLETED" && wo.status !== "CANCELLED" ? (
+        {wo.status === "DRAFT" ? (
+          <Card className="p-5">
+            <h2 className="font-display mb-3 text-xl">Start production</h2>
+            <p className="mb-4 text-sm text-muted">
+              Starting marks this work order in progress. Raw materials are consumed when you complete it.
+            </p>
+            <ActionForm action={startWorkOrder.bind(null, wo.id)}>
+              <SubmitButton>Start</SubmitButton>
+            </ActionForm>
+            <div className="mt-4">
+              <ActionForm action={cancelWorkOrder.bind(null, wo.id)}>
+                <SubmitButton variant="danger">Cancel work order</SubmitButton>
+              </ActionForm>
+            </div>
+          </Card>
+        ) : wo.status === "CONFIRMED" ? (
           <Card className="p-5">
             <h2 className="font-display mb-3 text-xl">Produce batch</h2>
             <ActionForm action={produceBatch} className="space-y-3">
@@ -124,8 +141,16 @@ export default async function WorkOrderDetailPage({ params }: { params: Promise<
                   {b.number}
                 </a>{" "}
                 · {qty(b.outputQty)} good · wastage {qty(b.wastageQty)} · {formatDate(b.mfgDate)}
+                {b.status === "CANCELLED" ? " · reversed" : ""}
               </p>
             ))}
+            {wo.status === "COMPLETED" ? (
+              <div className="mt-4">
+                <ActionForm action={reverseWorkOrder.bind(null, wo.id)}>
+                  <SubmitButton variant="danger">Reverse production</SubmitButton>
+                </ActionForm>
+              </div>
+            ) : null}
           </Card>
         )}
       </div>

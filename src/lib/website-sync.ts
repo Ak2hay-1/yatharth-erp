@@ -280,8 +280,8 @@ async function pushAsset(
   settings: WebsiteSyncSettings,
   sku: string,
   asset: CatalogItem["productAssets"][number],
+  buf: Buffer,
 ) {
-  const buf = await readDocumentBytes(asset.storageKey);
   const bytes = new Uint8Array(buf);
   const form = new FormData();
   const file = new File([bytes], asset.fileName || "asset.bin", {
@@ -301,15 +301,29 @@ async function pushAsset(
   }
 }
 
-async function pushAssetsForItem(settings: WebsiteSyncSettings, item: CatalogItem) {
+/** Returns how many assets were skipped because their stored file is missing. */
+async function pushAssetsForItem(settings: WebsiteSyncSettings, item: CatalogItem): Promise<number> {
   if (!item.productAssets.length) {
     await clearAssets(settings, item.sku).catch(() => undefined);
-    return;
+    return 0;
   }
   await clearAssets(settings, item.sku);
+  let missing = 0;
   for (const asset of item.productAssets) {
-    await pushAsset(settings, item.sku, asset);
+    let buf: Buffer;
+    try {
+      buf = await readDocumentBytes(asset.storageKey);
+    } catch {
+      missing += 1;
+      continue;
+    }
+    await pushAsset(settings, item.sku, asset, buf);
   }
+  return missing;
+}
+
+function missingPhotosNote(missing: number) {
+  return missing ? ` (${missing} photo file(s) missing — re-upload in Product Media)` : "";
 }
 
 export async function publishWebsiteCatalog() {
@@ -320,8 +334,9 @@ export async function publishWebsiteCatalog() {
   try {
     await pushCompany(settings);
     const catalog = await pushProducts(settings);
+    let missing = 0;
     for (const item of catalog) {
-      await pushAssetsForItem(settings, item);
+      missing += await pushAssetsForItem(settings, item);
     }
     await clearQueue();
     const next: WebsiteSyncSettings = {
@@ -329,7 +344,7 @@ export async function publishWebsiteCatalog() {
       lastPublishAt: new Date().toISOString(),
       lastFlushAt: new Date().toISOString(),
       lastError: "",
-      lastStatus: `Published ${catalog.length} finished SKUs`,
+      lastStatus: `Published ${catalog.length} finished SKUs${missingPhotosNote(missing)}`,
     };
     await writeWebsiteSyncSettings(next);
     return { ok: true as const, count: catalog.length, settings: next };
@@ -358,6 +373,7 @@ export async function flushWebsiteSyncQueue(reason: "scheduled" | "manual" = "ma
   }
 
   let flushed = 0;
+  let missing = 0;
   let lastError = "";
 
   try {
@@ -380,7 +396,7 @@ export async function flushWebsiteSyncQueue(reason: "scheduled" | "manual" = "ma
     for (const sku of assetSkus) {
       const item = catalog?.find((c) => c.sku === sku);
       if (!item) continue;
-      await pushAssetsForItem(settings, item);
+      missing += await pushAssetsForItem(settings, item);
       flushed += 1;
     }
   } catch (err) {
@@ -404,7 +420,7 @@ export async function flushWebsiteSyncQueue(reason: "scheduled" | "manual" = "ma
     ...settings,
     lastFlushAt: new Date().toISOString(),
     lastError,
-    lastStatus: lastError ? "Flush failed" : `Flushed ${flushed} job(s)`,
+    lastStatus: lastError ? "Flush failed" : `Flushed ${flushed} job(s)${missingPhotosNote(missing)}`,
   };
   await writeWebsiteSyncSettings(next);
 

@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { ContentLocale } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -65,7 +64,7 @@ export async function createRecipe(formData: FormData) {
     },
   });
   revalidatePath("/masters/recipes");
-  redirect("/masters/recipes");
+  return { redirectTo: "/masters/recipes" };
   });
 }
 
@@ -86,7 +85,7 @@ export async function updateRecipe(id: string, formData: FormData) {
     }),
   ]);
   revalidatePath("/masters/recipes");
-  redirect("/masters/recipes");
+  return { redirectTo: "/masters/recipes" };
   });
 }
 
@@ -97,7 +96,7 @@ export async function deleteRecipe(id: string) {
     if (used > 0) throw new Error("This recipe has work orders and cannot be deleted");
     await prisma.recipe.delete({ where: { id } });
     revalidatePath("/masters/recipes");
-    redirect("/masters/recipes");
+    return { redirectTo: "/masters/recipes" };
   });
 }
 
@@ -139,6 +138,6 @@ export async function saveRecipeTranslation(recipeId: string, formData: FormData
     });
   }
   revalidatePath(`/masters/recipes/${recipeId}`);
-  redirect(`/masters/recipes/${recipeId}?locale=${locale}`);
+  return { redirectTo: `/masters/recipes/${recipeId}?locale=${locale}` };
   });
 }
