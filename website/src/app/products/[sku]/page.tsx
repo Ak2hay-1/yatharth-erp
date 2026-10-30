@@ -94,7 +94,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
               packSize={label}
               rateB2b={product.rateB2b}
               category={product.category}
-              imageUrl={product.assets?.[0]?.publicUrl ? img : undefined}
+              imageUrl={img}
               enquireHref={enquireHref}
             />
           </div>

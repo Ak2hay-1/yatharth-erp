@@ -46,7 +46,7 @@ export function ProductCard({ product, showPrice = false }: ProductCardProps) {
           packSize={packLabel(product)}
           rateB2b={product.rateB2b}
           category={product.category}
-          imageUrl={product.assets?.[0]?.publicUrl ? img : undefined}
+          imageUrl={img}
           enquireHref={enquireHref}
         />
       </div>
