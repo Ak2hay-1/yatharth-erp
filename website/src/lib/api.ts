@@ -51,6 +51,18 @@ export async function fetchCompany(): Promise<PublicCompany | null> {
   }
 }
 
+export async function fetchProduct(sku: string): Promise<PublicProduct | null> {
+  const base = apiBase();
+  if (!base) return null;
+  try {
+    const res = await fetch(`${base}/v1/public/products/${encodeURIComponent(sku)}`, { next: { revalidate: 60 } });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchProducts(category?: "veg" | "non-veg"): Promise<PublicProduct[]> {
   const base = apiBase();
   if (!base) return [];

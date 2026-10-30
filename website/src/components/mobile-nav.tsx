@@ -12,7 +12,7 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="lg:hidden">
+    <div className="xl:hidden">
       <button
         type="button"
         aria-label={open ? "Close menu" : "Open menu"}
@@ -33,6 +33,16 @@ export function MobileNav() {
       {open ? (
         <div className="absolute left-0 right-0 top-full z-50 border-b border-white/10 bg-[#23262C] shadow-xl">
           <nav className="mx-auto max-w-6xl space-y-1 px-4 py-4">
+            <form action="/products" className="mb-3">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-white/40">
+                Search products
+                <input
+                  name="q"
+                  placeholder="Patties, nuggets…"
+                  className="mt-2 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-normal normal-case tracking-normal text-white outline-none placeholder:text-white/40 focus:border-[#FE7733]"
+                />
+              </label>
+            </form>
             {NAV_LINKS.map((link) =>
               isNavGroup(link) ? (
                 <div key={link.label} className="py-2">

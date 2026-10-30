@@ -12,6 +12,7 @@ type ProductCardActionsProps = {
   category: string;
   imageUrl?: string;
   enquireHref: string;
+  variant?: "card" | "detail";
 };
 
 export function ProductCardActions({
@@ -22,6 +23,7 @@ export function ProductCardActions({
   category,
   imageUrl,
   enquireHref,
+  variant = "card",
 }: ProductCardActionsProps) {
   const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
@@ -31,6 +33,42 @@ export function ProductCardActions({
     addItem({ sku, name, packSize, rateB2b, category, imageUrl }, quantity);
     setAdded(true);
     window.setTimeout(() => setAdded(false), 2000);
+  }
+
+  if (variant === "detail") {
+    return (
+      <div className="mt-6 space-y-4">
+        <label className="block text-sm text-muted">
+          Quantity (packets)
+          <input
+            type="number"
+            min={1}
+            max={999}
+            value={quantity}
+            onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+            className="mt-1 w-24 rounded-lg border border-neutral-200 bg-cream px-3 py-2 text-sm text-ink"
+          />
+        </label>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand hover:text-ink"
+          >
+            {added ? "Added to order" : "Add to order"}
+          </button>
+          <Link href={enquireHref} className="rounded-full bg-brand px-5 py-3 text-center text-sm font-semibold text-ink">
+            Enquire now
+          </Link>
+          <Link
+            href="/price-list"
+            className="rounded-full border border-neutral-300 px-5 py-3 text-center text-sm font-semibold text-ink"
+          >
+            View price list
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (

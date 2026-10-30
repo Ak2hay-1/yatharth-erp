@@ -6,7 +6,7 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/+$/, "
 
 export const SITE_NAME = "Yathartha Foods & Beverages";
 export const SITE_DESCRIPTION =
-  "Frozen burger patties, nuggets and ready foods for HORECA and distributors in Pune.";
+  "Premium frozen patties and nuggets for restaurants, hotels, cafes, QSR chains and distributors. Made in Pune.";
 
 export const CONTACT = {
   phone: "7028832038",

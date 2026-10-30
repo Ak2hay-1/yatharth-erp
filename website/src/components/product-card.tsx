@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ProductCardActions } from "@/components/product-card-actions";
-import { assetUrl, money, type PublicProduct } from "@/lib/api";
+import { money, type PublicProduct } from "@/lib/api";
+import { isVegProduct, packLabel, productImageSrc } from "@/lib/product-media";
 
 type ProductCardProps = {
   product: PublicProduct;
@@ -9,60 +10,43 @@ type ProductCardProps = {
 };
 
 export function ProductCard({ product, showPrice = false }: ProductCardProps) {
-  const img = product.assets?.[0]?.publicUrl;
+  const img = productImageSrc(product);
+  const detailHref = `/products/${encodeURIComponent(product.sku)}`;
   const enquireHref = `/contact?product=${encodeURIComponent(product.name)}`;
-  const isVeg = product.category === "veg" || product.category === "potato-veg";
-  const packLabel = product.packSize || `${product.unitsPerPkt} pcs / packet`;
+  const veg = isVegProduct(product.category);
 
   return (
-    <article className="group flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <Link href={enquireHref} className="relative aspect-square bg-neutral-100">
-        {img ? (
-          <Image
-            src={assetUrl(img)}
-            alt={product.name}
-            fill
-            className="object-cover transition group-hover:scale-105"
-            sizes="(max-width:768px) 50vw, 25vw"
-          />
-        ) : (
-          <div
-            className={`flex h-full flex-col items-center justify-center gap-3 px-4 text-center ${
-              isVeg
-                ? "bg-[radial-gradient(circle_at_30%_20%,#d8f5b8,transparent_55%),linear-gradient(160deg,#f3faf0,#e8f0e4)]"
-                : "bg-[radial-gradient(circle_at_30%_20%,#ffd4b8,transparent_55%),linear-gradient(160deg,#fff6f0,#f3e8e0)]"
-            }`}
-          >
-            <span
-              className={`inline-flex h-14 w-14 items-center justify-center rounded-full text-xs font-bold uppercase tracking-wide ${
-                isVeg ? "bg-[#2f6b2f] text-white" : "bg-[#b33a1a] text-white"
-              }`}
-            >
-              {isVeg ? "Veg" : "Non-veg"}
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-neutral-800">{product.name}</p>
-              <p className="mt-1 text-xs text-neutral-500">Pack photo coming soon — enquire for samples</p>
-            </div>
-          </div>
-        )}
+    <article className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md">
+      <Link href={detailHref} className="relative aspect-square bg-neutral-100">
+        <Image
+          src={img}
+          alt={product.name}
+          fill
+          className="object-cover transition duration-500 group-hover:scale-105"
+          sizes="(max-width:768px) 50vw, 25vw"
+        />
       </Link>
       <div className="flex flex-1 flex-col p-4">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#FE7733]">
-          {product.category.replace("-", " ")}
+        <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
+          <span className={`h-2 w-2 rounded-full ${veg ? "bg-veg" : "bg-[#b91c1c]"}`} aria-hidden />
+          {veg ? "Veg" : "Non-veg"}
         </p>
-        <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-neutral-900">{product.name}</h3>
-        <p className="mt-1 text-xs text-neutral-500">{packLabel}</p>
+        <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-ink">
+          <Link href={detailHref} className="hover:text-brand">
+            {product.name}
+          </Link>
+        </h3>
+        <p className="mt-1 text-xs text-muted">{packLabel(product)}</p>
         {showPrice && product.rateB2b > 0 ? (
-          <p className="mt-2 text-base font-bold text-neutral-900">{money(product.rateB2b)}</p>
+          <p className="mt-2 text-base font-bold text-ink">{money(product.rateB2b)}</p>
         ) : null}
         <ProductCardActions
           sku={product.sku}
           name={product.name}
-          packSize={packLabel}
+          packSize={packLabel(product)}
           rateB2b={product.rateB2b}
           category={product.category}
-          imageUrl={img ? assetUrl(img) : undefined}
+          imageUrl={product.assets?.[0]?.publicUrl ? img : undefined}
           enquireHref={enquireHref}
         />
       </div>

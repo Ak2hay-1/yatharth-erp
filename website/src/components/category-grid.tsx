@@ -1,32 +1,45 @@
+import Image from "next/image";
 import Link from "next/link";
 import { PRODUCT_CATEGORIES } from "@/lib/catalog";
 
 export function CategoryGrid() {
   return (
-    <section className="bg-neutral-50 py-14">
+    <section className="bg-cream py-16 md:py-20">
       <div className="mx-auto max-w-6xl px-4">
-        <h2 className="text-center font-display text-3xl text-neutral-900">Popular categories</h2>
-        <p className="mx-auto mt-3 max-w-xl text-center text-sm text-neutral-600">
-          Frozen burger patties, nuggets and HORECA packs — browse by category
-        </p>
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Range</p>
+            <h2 className="font-display mt-2 text-3xl text-ink md:text-4xl">Our product range</h2>
+            <p className="mt-3 max-w-xl text-sm text-muted">
+              Patties, nuggets and bulk packs made for restaurants and food businesses.
+            </p>
+          </div>
+          <Link href="/products" className="hidden text-sm font-semibold text-brand hover:underline sm:block">
+            View all products →
+          </Link>
+        </div>
+
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {PRODUCT_CATEGORIES.map((cat) => (
             <Link
               key={cat.slug}
               href={cat.href}
-              className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200 transition hover:-translate-y-1 hover:shadow-lg"
+              className="group overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md"
             >
-              <div
-                className={`absolute inset-0 bg-gradient-to-br ${cat.gradient} opacity-0 transition group-hover:opacity-10`}
-              />
-              <span className="text-3xl" aria-hidden>
-                {cat.emoji}
-              </span>
-              <h3 className="mt-3 text-lg font-semibold text-neutral-900">{cat.title}</h3>
-              <p className="mt-1 text-sm text-neutral-600">{cat.description}</p>
-              <span className="mt-4 inline-block text-sm font-semibold text-[#FE7733] group-hover:underline">
-                Shop now →
-              </span>
+              <div className="relative aspect-[4/3] bg-neutral-100">
+                <Image
+                  src={cat.image}
+                  alt={cat.title}
+                  fill
+                  className="object-cover transition duration-500 group-hover:scale-105"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                />
+              </div>
+              <div className="p-4">
+                <h3 className="text-base font-semibold text-ink">{cat.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-muted">{cat.description}</p>
+                <span className="mt-3 inline-block text-sm font-semibold text-brand">View →</span>
+              </div>
             </Link>
           ))}
         </div>
