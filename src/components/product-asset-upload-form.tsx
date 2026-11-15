@@ -6,7 +6,7 @@ import type { CatalogItem } from "@/components/catalog-types";
 import { NamedSearch } from "@/components/named-search";
 import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { PRODUCT_ASSET_KINDS } from "@/lib/labels";
-import { productImageError } from "@/lib/product-image";
+import { uploadProductAssetDirect } from "@/lib/product-asset-upload";
 
 export function ProductAssetUploadForm({
   items,
@@ -31,33 +31,26 @@ export function ProductAssetUploadForm({
         setError(null);
         const form = event.currentTarget;
         const body = new FormData(form);
-        if (!String(body.get("itemId") ?? "").trim()) {
-          setError("Choose a product.");
-          return;
-        }
+        const itemId = String(body.get("itemId") ?? "").trim();
         const file = body.get("file");
         if (!(file instanceof File)) {
           setError("Choose an image or file.");
           return;
         }
-        const invalid = productImageError(file);
-        if (invalid) {
-          setError(invalid);
-          return;
-        }
 
         setPending(true);
         try {
-          const res = await fetch("/api/product-assets", { method: "POST", body });
-          if (!res.ok) {
-            const message = (await res.text()).trim();
-            setError(message || "Upload failed.");
-            return;
-          }
+          await uploadProductAssetDirect({
+            itemId,
+            file,
+            kind: String(body.get("kind") ?? "PACK_SHOT"),
+            title: String(body.get("title") ?? ""),
+            notes: String(body.get("notes") ?? ""),
+          });
           setFormKey((key) => key + 1);
           router.refresh();
-        } catch {
-          setError("Upload failed.");
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Upload failed.");
         } finally {
           setPending(false);
         }

@@ -57,7 +57,22 @@ Create a **separate** Vercel project from the website project.
 
 1. **Neon PostgreSQL** — project **Yathartha foods** (`solitary-pine-12141341`). Use pooled `DATABASE_URL` and direct `DATABASE_URL_UNPOOLED` (both from `neon env pull` or Neon dashboard).
 2. **Vercel Blob** — create store; copy `BLOB_READ_WRITE_TOKEN` (SOPs, complaints, and costing files).
-3. **Cloudflare R2** — private bucket and an API token with Object Read & Write, for product images. No public `r2.dev` domain is required.
+3. **Cloudflare R2** — private source bucket (e.g. `yatharth-foods`) and a second private backup bucket (e.g. `yatharth-foods-backup`). Create an API token with Object Read & Write on **both** buckets, for product images and the daily mirror. No public `r2.dev` domain is required.
+   - **Bucket CORS** (required for browser direct uploads): in the source bucket → Settings → CORS, allow the ERP origins to `PUT`/`GET`/`HEAD`. Example:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://erp.yatharthafoods.in", "http://localhost:3000"],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag", "Content-Type"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+   - Prefer **DNS-only (grey cloud)** for the `erp` hostname in Cloudflare when proxying large uploads through orange-cloud causes intermittent `502 Bad gateway` HTML pages on `/api/product-assets`.
 4. Set environment variables:
 
 ```
@@ -70,7 +85,8 @@ BLOB_READ_WRITE_TOKEN=<from Vercel Blob>
 R2_ACCOUNT_ID=<Cloudflare account id>
 R2_ACCESS_KEY_ID=<R2 API token access key>
 R2_SECRET_ACCESS_KEY=<R2 API token secret>
-R2_BUCKET=<bucket name>
+R2_BUCKET=<source bucket name>
+R2_BACKUP_BUCKET=<backup bucket name>
 CRON_SECRET=<random>
 YATHARTH_DEPLOYMENT_ID=yatharth-erp-prod
 SETUP_SECRET=<random, remove after seeding>
@@ -98,6 +114,12 @@ npx tsx scripts/backfill-product-images-r2.ts
 Verify: `powershell -File scripts/Verify-ErpHealth.ps1`
 
 **Cron:** [vercel.json](../vercel.json) flushes the website sync queue once daily (`0 4 * * *` UTC) on Hobby. For ~every 2 minutes, upgrade to Vercel **Pro** and set `schedule` to `*/2 * * * *`, or use manual **Publish / Flush** in Settings anytime.
+
+**R2 backup:** the same cron config fully mirrors `R2_BUCKET` → `R2_BACKUP_BUCKET` daily at `30 4 * * *` UTC (`/api/r2/backup`). Every object is copied server-side under the same keys on each run; keys are never deleted from the backup bucket. After creating the backup bucket and setting `R2_BACKUP_BUCKET`, run a one-shot smoke test:
+
+```powershell
+npx tsx scripts/backup-r2-bucket.ts
+```
 
 ## 4. Vercel website (`yatharthafoods.in`)
 

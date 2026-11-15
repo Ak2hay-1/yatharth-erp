@@ -19,5 +19,7 @@ export async function deleteProductAsset(id: string) {
     void enqueueWebsiteSync("asset", item.sku);
   }
   revalidatePath("/masters/media");
+  revalidatePath("/masters/website-catalog");
+  revalidatePath(`/masters/website-catalog/${row.itemId}`);
   revalidatePath(`/masters/items/${row.itemId}`);
 }

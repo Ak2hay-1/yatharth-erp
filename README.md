@@ -27,7 +27,7 @@ Open [http://localhost:3000](http://localhost:3000) and sign in.
 
 There is **no public registration**. Only the owner (Super Admin) can create accounts (Settings → Users). Change the seeded password after first login. Put your real GSTIN and bank details under **Settings**. FSSAI is seeded as `21526037002727`.
 
-Product images are stored in Cloudflare R2 (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`). Other uploads use [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) when `BLOB_READ_WRITE_TOKEN` is set, and `uploads/documents/` otherwise.
+Product images are stored in Cloudflare R2 (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`). A daily cron fully mirrors every object to `R2_BACKUP_BUCKET` (same account; keys are never pruned from the backup). Other uploads use [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) when `BLOB_READ_WRITE_TOKEN` is set, and `uploads/documents/` otherwise.
 
 ## Neon database (production)
 

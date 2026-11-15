@@ -12,7 +12,7 @@ Copy values into:
 
 - VM `services/sync-api/.env` — `SYNC_SECRET`, `REVALIDATE_WEBHOOK_SECRET`, `POSTGRES_PASSWORD`
 - Vercel **website** project — `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_API_URL`, `REVALIDATE_WEBHOOK_SECRET`
-- Vercel **ERP** project — `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `BLOB_READ_WRITE_TOKEN`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `CRON_SECRET`, `YATHARTH_DEPLOYMENT_ID`, `SETUP_SECRET` (temporary)
+- Vercel **ERP** project — `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `BLOB_READ_WRITE_TOKEN`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_BACKUP_BUCKET`, `CRON_SECRET`, `YATHARTH_DEPLOYMENT_ID`, `SETUP_SECRET` (temporary)
 - ERP Settings → Website sync — API URL + the same `SYNC_SECRET`
 - Optional SMTP on the VM for contact-form email (`SMTP_*`, `CONTACT_NOTIFY_TO`)
 
@@ -20,13 +20,13 @@ Do not commit `secrets/prod-secrets.env`.
 
 ## B. API DNS + TLS
 
-1. Cloudflare → `yatharthafoods.in` → DNS → **A** `api` → `95.135.254.46` (shared VM with other apps).
+1. Cloudflare → `yatharthafoods.in` → DNS → **A** `api` → `95.135.254.73` (shared VM with other apps).
 2. Proxy **DNS only** (grey cloud), not orange.
 3. On the VM (`/opt/yatharth-erp/services/sync-api`): `docker compose -p yatharth-sync -f docker-compose.yml -f docker-compose.shared-vm.yml up -d --build`
 4. Host nginx owns :80/:443 — site `/etc/nginx/sites-available/api.yatharthafoods.in.conf` proxies to `127.0.0.1:3001`; TLS via `certbot --nginx -d api.yatharthafoods.in`.
-5. From a PC: `powershell -File scripts/Verify-ApiHealth.ps1 -ExpectedVmIp 95.135.254.46`
+5. From a PC: `powershell -File scripts/Verify-ApiHealth.ps1 -ExpectedVmIp 95.135.254.73`
 
-Expect `95.135.254.46` (not `104.21.x`) and `{"ok":true}` from `https://api.yatharthafoods.in/health`.
+Expect `95.135.254.73` (not `104.21.x`) and `{"ok":true}` from `https://api.yatharthafoods.in/health`.
 
 ## C. Website (Vercel)
 
@@ -59,7 +59,7 @@ Website sync queue flushes via Vercel Cron (~every 2 min on Pro) or manual **Pub
 
 - Check Settings → Website enquiries daily (or SMTP inbox).
 - Re-publish after major catalog changes if sync was disabled.
-- Database backups: managed by Neon (see Settings → Database backups note in ERP).
+- Database backups: managed by Neon (see Settings → Database backups note in ERP). Product images: daily R2 mirror to `R2_BACKUP_BUCKET` (`/api/r2/backup`).
 
 ## G. Desktop installer (paused)
 

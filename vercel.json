@@ -7,6 +7,10 @@
     {
       "path": "/api/sync/flush",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/r2/backup",
+      "schedule": "30 4 * * *"
     }
   ],
   "headers": [

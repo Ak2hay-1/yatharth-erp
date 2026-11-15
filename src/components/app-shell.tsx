@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Role } from "@prisma/client";
 import {
   Boxes,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Factory,
   FileText,
@@ -23,6 +25,7 @@ import {
   IndianRupee,
   Tag,
   Image as ImageIcon,
+  Globe,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { EscapeBackButton } from "@/components/escape-back";
@@ -108,6 +111,7 @@ const GROUPS: NavGroup[] = [
       { href: "/masters/costing", label: "Product costing", icon: IndianRupee, roles: FINANCE },
       { href: "/masters/labelling", label: "Labelling", icon: Tag, roles: MANAGEMENT },
       { href: "/masters/media", label: "Product images", icon: ImageIcon, roles: OPS },
+      { href: "/masters/website-catalog", label: "Website catalog", icon: Globe, roles: MANAGEMENT },
     ],
   },
   {
@@ -116,6 +120,8 @@ const GROUPS: NavGroup[] = [
     items: [{ href: "/settings", label: "Settings", icon: Settings, roles: SUPER_ADMIN_ONLY }],
   },
 ];
+
+const COLLAPSE_KEY = "yatharth-sidebar-collapsed";
 
 export function AppShell({
   children,
@@ -137,45 +143,81 @@ export function AppShell({
   const [open, setOpen] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(GROUPS.map((g) => [g.id, true])),
   );
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   return (
     <div className="min-h-screen bg-bg">
-      <aside className="fixed inset-y-0 left-0 z-20 flex w-72 flex-col bg-forest text-white">
-        <div className="border-b border-white/10 px-5 py-5">
-          <div className="flex flex-col items-center">
-            <BrandLogo height={48} className="mx-auto max-w-[220px]" priority />
-            {companyName && companyName !== `${BRAND_NAME} ${BRAND_TAGLINE}` ? (
-              <p className="mt-2 max-w-[220px] text-center text-[11px] leading-snug text-white/50">
-                {companyName}
-              </p>
-            ) : null}
-          </div>
-          <div className="mt-4 flex items-center gap-2">
-            <form action="/search" className="relative min-w-0 flex-1">
-              <Search size={14} className="pointer-events-none absolute left-3 top-2.5 text-white/40" />
-              <input
-                name="q"
-                placeholder="Invoice, party, SKU"
-                aria-label="Search"
-                className="w-full rounded-lg border border-white/15 bg-white/10 py-2 pl-9 pr-3 text-xs text-white placeholder:text-white/40 outline-none focus:border-saffron focus:ring-2 focus:ring-saffron/30"
-              />
-            </form>
-            <EscapeBackButton />
-          </div>
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-20 flex flex-col bg-forest text-white transition-[width] duration-200",
+          collapsed ? "w-16" : "w-72",
+        )}
+      >
+        <div className={cn("border-b border-white/10", collapsed ? "px-2 py-4" : "px-5 py-5")}>
+          {!collapsed ? (
+            <div className="flex flex-col items-center">
+              <BrandLogo height={48} className="mx-auto max-w-[220px]" priority />
+              {companyName && companyName !== `${BRAND_NAME} ${BRAND_TAGLINE}` ? (
+                <p className="mt-2 max-w-[220px] text-center text-[11px] leading-snug text-white/50">
+                  {companyName}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <BrandLogo height={28} className="max-w-[40px]" priority />
+            </div>
+          )}
+          {!collapsed ? (
+            <div className="mt-4 flex items-center gap-2">
+              <form action="/search" className="relative min-w-0 flex-1">
+                <Search size={14} className="pointer-events-none absolute left-3 top-2.5 text-white/40" />
+                <input
+                  name="q"
+                  placeholder="Invoice, party, SKU"
+                  aria-label="Search"
+                  className="w-full rounded-lg border border-white/15 bg-white/10 py-2 pl-9 pr-3 text-xs text-white placeholder:text-white/40 outline-none focus:border-saffron focus:ring-2 focus:ring-saffron/30"
+                />
+              </form>
+              <EscapeBackButton />
+            </div>
+          ) : null}
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 overflow-y-auto px-2 py-4">
           {groups.map((group) => {
             const expanded = open[group.id] ?? true;
             return (
               <div key={group.id} className="mb-3">
-                <button
-                  type="button"
-                  className="mb-1 w-full px-3 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55"
-                  onClick={() => setOpen((prev) => ({ ...prev, [group.id]: !prev[group.id] }))}
-                >
-                  {group.label}
-                </button>
-                {expanded
+                {!collapsed ? (
+                  <button
+                    type="button"
+                    className="mb-1 w-full px-3 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55"
+                    onClick={() => setOpen((prev) => ({ ...prev, [group.id]: !prev[group.id] }))}
+                  >
+                    {group.label}
+                  </button>
+                ) : null}
+                {(collapsed || expanded)
                   ? group.items.map((item) => {
                       const active = pathname === item.href || pathname.startsWith(item.href + "/");
                       const Icon = item.icon;
@@ -183,15 +225,17 @@ export function AppShell({
                         <Link
                           key={item.href}
                           href={item.href}
+                          title={item.label}
                           className={cn(
-                            "mb-0.5 flex items-center gap-3 rounded-lg px-3 py-2 text-sm leading-none",
+                            "mb-0.5 flex items-center rounded-lg text-sm leading-none",
+                            collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2",
                             active
                               ? "bg-sprout font-semibold text-ink"
                               : "text-white/80 hover:bg-white/5 hover:text-white",
                           )}
                         >
                           <Icon size={16} className="shrink-0" />
-                          <span className="truncate">{item.label}</span>
+                          {!collapsed ? <span className="truncate">{item.label}</span> : null}
                         </Link>
                       );
                     })
@@ -200,17 +244,39 @@ export function AppShell({
             );
           })}
         </nav>
-        <div className="border-t border-white/10 px-5 py-4">
-          <div className="truncate text-sm font-medium text-white">{user.name}</div>
-          <div className="truncate text-xs text-white/50">{roleLabel(user.role)}</div>
-          <form action={logoutAction} className="mt-3">
-            <button className="inline-flex items-center gap-2 text-xs font-medium text-saffron hover:text-white">
-              <LogOut size={14} /> Sign out
+        <div className={cn("border-t border-white/10", collapsed ? "px-2 py-3" : "px-5 py-4")}>
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className={cn(
+              "mb-3 inline-flex w-full items-center rounded-lg border border-white/15 px-2 py-2 text-xs text-white/80 hover:bg-white/5",
+              collapsed ? "justify-center" : "justify-between gap-2",
+            )}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {!collapsed ? <span>Collapse menu</span> : null}
+            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
+          {!collapsed ? (
+            <>
+              <div className="truncate text-sm font-medium text-white">{user.name}</div>
+              <div className="truncate text-xs text-white/50">{roleLabel(user.role)}</div>
+            </>
+          ) : null}
+          <form action={logoutAction} className={collapsed ? "mt-1 flex justify-center" : "mt-3"}>
+            <button
+              className="inline-flex items-center gap-2 text-xs font-medium text-saffron hover:text-white"
+              title="Sign out"
+            >
+              <LogOut size={14} />
+              {!collapsed ? "Sign out" : null}
             </button>
           </form>
         </div>
       </aside>
-      <main className="ml-72 min-h-screen px-8 py-8">{children}</main>
+      <main className={cn("min-h-screen px-8 py-8 transition-[margin] duration-200", collapsed ? "ml-16" : "ml-72")}>
+        {children}
+      </main>
     </div>
   );
 }

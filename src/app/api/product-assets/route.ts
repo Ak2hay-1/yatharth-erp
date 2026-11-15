@@ -10,6 +10,7 @@ import { deleteR2Object, putR2Object, r2Configured, toR2StorageKey } from "@/lib
 import { enqueueWebsiteSync } from "@/lib/website-sync";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const KINDS = new Set<ProductAssetKind>(["PACK_SHOT", "LABEL_ART", "PROCESS", "OTHER"]);
 
@@ -56,7 +57,13 @@ export async function POST(request: Request) {
     if (err instanceof Error && err.message === "Image storage is not configured.") {
       return new Response(err.message, { status: 503 });
     }
-    return new Response("Could not store the image.", { status: 502 });
+    const detail =
+      err instanceof Error && err.message
+        ? err.message.replace(/\s+/g, " ").trim().slice(0, 280)
+        : "";
+    console.error("[product-assets] R2 put failed", err);
+    // 502 = origin storage failure (what Cloudflare reports as an ERP server error).
+    return new Response(detail || "Could not store the image.", { status: 502 });
   }
 
   try {
@@ -82,6 +89,8 @@ export async function POST(request: Request) {
     void enqueueWebsiteSync("asset", item.sku);
   }
   revalidatePath("/masters/media");
+  revalidatePath("/masters/website-catalog");
+  revalidatePath(`/masters/website-catalog/${itemId}`);
   revalidatePath(`/masters/items/${itemId}`);
   return new Response(null, { status: 204 });
 }

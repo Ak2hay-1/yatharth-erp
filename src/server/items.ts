@@ -44,6 +44,7 @@ export async function createItem(formData: FormData) {
   await prisma.item.create({ data });
   if (data.type === "FINISHED") void enqueueWebsiteSync("products");
   revalidatePath("/masters/items");
+  revalidatePath("/masters/website-catalog");
   return { redirectTo: "/masters/items" };
   });
 }
@@ -56,6 +57,7 @@ export async function createItemQuick(formData: FormData) {
   const item = await prisma.item.create({ data });
   if (data.type === "FINISHED") void enqueueWebsiteSync("products");
   revalidatePath("/masters/items");
+  revalidatePath("/masters/website-catalog");
   return {
     id: item.id,
     sku: item.sku,
@@ -79,6 +81,8 @@ export async function updateItem(id: string, formData: FormData) {
     void enqueueWebsiteSync("asset", data.sku);
   }
   revalidatePath("/masters/items");
+  revalidatePath("/masters/website-catalog");
+  revalidatePath(`/masters/website-catalog/${id}`);
   return { redirectTo: "/masters/items" };
   });
 }
@@ -90,6 +94,8 @@ export async function setItemActive(id: string, active: boolean) {
     if (item.type === "FINISHED") void enqueueWebsiteSync("products");
     revalidatePath(`/masters/items/${id}`);
     revalidatePath("/masters/items");
+    revalidatePath("/masters/website-catalog");
+    revalidatePath(`/masters/website-catalog/${id}`);
   });
 }
 

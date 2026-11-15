@@ -1,4 +1,5 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export const R2_STORAGE_PREFIX = "r2:";
 
@@ -34,6 +35,7 @@ function r2Client() {
   }
   return {
     bucket: env.bucket,
+    // AWS SDK ≥3.729 sends CRC32 checksums by default; R2 rejects those headers.
     client: new S3Client({
       region: "auto",
       endpoint: `https://${env.accountId}.r2.cloudflarestorage.com`,
@@ -41,20 +43,35 @@ function r2Client() {
         accessKeyId: env.accessKeyId,
         secretAccessKey: env.secretAccessKey,
       },
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
     }),
   };
 }
 
 export async function putR2Object(objectKey: string, body: Buffer, contentType: string) {
   const { client, bucket } = r2Client();
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: objectKey,
-      Body: body,
-      ContentType: contentType || "application/octet-stream",
-    }),
-  );
+  const bytes = body instanceof Buffer ? body : Buffer.from(body);
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: objectKey,
+        Body: bytes,
+        ContentLength: bytes.length,
+        ContentType: contentType || "application/octet-stream",
+      }),
+    );
+  } catch (err) {
+    const name = err && typeof err === "object" && "name" in err ? String((err as { name: unknown }).name) : "";
+    const message = err instanceof Error ? err.message : String(err);
+    if (/AccessDenied|Access Denied|InvalidAccessKeyId|SignatureDoesNotMatch/i.test(`${name} ${message}`)) {
+      throw new Error(
+        "R2 credentials cannot write to the bucket. In Cloudflare R2, create an API token with Object Read & Write on this bucket, then update R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY on the ERP Vercel project.",
+      );
+    }
+    throw err instanceof Error ? err : new Error(message);
+  }
 }
 
 export async function getR2Object(objectKey: string): Promise<Buffer> {
@@ -77,4 +94,16 @@ export async function deleteR2Object(objectKey: string) {
       Key: objectKey,
     }),
   );
+}
+
+/** Browser uploads directly to R2 (avoids Cloudflare→Vercel multipart 502s). */
+export async function createR2PresignedPutUrl(objectKey: string, contentType: string, expiresIn = 120) {
+  const { client, bucket } = r2Client();
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: objectKey,
+    ContentType: contentType || "application/octet-stream",
+  });
+  const uploadUrl = await getSignedUrl(client, command, { expiresIn });
+  return { uploadUrl, bucket, objectKey, storageKey: toR2StorageKey(objectKey) };
 }

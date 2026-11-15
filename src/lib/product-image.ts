@@ -17,3 +17,13 @@ export function productImageError(file: { name: string; size: number }): string 
   }
   return null;
 }
+
+/** Turn Cloudflare HTML / gateway bodies into a short UI message. */
+export function friendlyUploadError(status: number, body: string) {
+  const text = body.replace(/\s+/g, " ").trim();
+  if (/<!DOCTYPE html>|cf-error-details|Bad gateway|cloudflare-nginx/i.test(body)) {
+    return "Upload hit a Cloudflare gateway error. Configure R2 bucket CORS for the ERP origin, then retry (direct-to-R2 upload). If it persists, set the erp DNS record to DNS-only (grey cloud).";
+  }
+  if (status === 413) return "Image is too large for the server. Use a file under 4 MB.";
+  return text.slice(0, 280) || "Upload failed.";
+}
