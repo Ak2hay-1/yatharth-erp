@@ -66,14 +66,15 @@ export async function uploadProductAssetDirect(fields: ProductAssetUploadFields)
       body: fields.file,
     });
   } catch (err) {
-    throw new Error(networkUploadError(err, "r2"));
+    // Bucket CORS missing → browser throws. Fall back to ERP proxy upload.
+    await uploadProductAssetViaServer(fields);
+    return;
   }
   if (!putRes.ok) {
     const detail = (await putRes.text().catch(() => "")).trim();
     if (/AccessDenied|Access Denied|Forbidden/i.test(detail) || putRes.status === 403) {
-      throw new Error(
-        "R2 rejected the upload (403). Check Object Read & Write on the API token, and add CORS on the R2 bucket allowing PUT from the ERP origin.",
-      );
+      await uploadProductAssetViaServer(fields);
+      return;
     }
     throw new Error(detail.slice(0, 280) || `Direct storage upload failed (${putRes.status}).`);
   }
@@ -100,5 +101,25 @@ export async function uploadProductAssetDirect(fields: ProductAssetUploadFields)
   }
   if (!completeRes.ok) {
     throw new Error(friendlyUploadError(completeRes.status, await completeRes.text()));
+  }
+}
+
+/** Legacy path: send the file through the ERP (works when Cloudflare does not 502 the multipart). */
+async function uploadProductAssetViaServer(fields: ProductAssetUploadFields) {
+  const body = new FormData();
+  body.set("itemId", fields.itemId);
+  body.set("kind", fields.kind || "PACK_SHOT");
+  body.set("title", fields.title || "");
+  body.set("notes", fields.notes || "");
+  body.set("file", fields.file);
+
+  let res: Response;
+  try {
+    res = await fetch("/api/product-assets", { method: "POST", body });
+  } catch (err) {
+    throw new Error(networkUploadError(err, "r2"));
+  }
+  if (!res.ok) {
+    throw new Error(friendlyUploadError(res.status, await res.text()));
   }
 }
