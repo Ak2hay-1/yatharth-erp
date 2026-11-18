@@ -16,6 +16,7 @@ const KINDS = [
   "production",
   "waste",
   "expiry",
+  "expired",
   "payments",
 ] as const;
 
@@ -49,7 +50,7 @@ export async function GET(_request: Request, context: { params: Promise<{ kind: 
       ["Complaint %", kpis.complaintPct.toFixed(1)],
       ["Repeat %", kpis.repeatPct.toFixed(1)],
       ["Wastage %", kpis.wastagePct.toFixed(1)],
-      ["On-time %", kpis.onTimePct.toFixed(1)],
+      ["On-time %", kpis.onTimePct == null ? "No data" : kpis.onTimePct.toFixed(1)],
     ]);
   }
 
@@ -210,11 +211,32 @@ export async function GET(_request: Request, context: { params: Promise<{ kind: 
     );
   }
 
-  // expiry
+  // expiry / expired — align with dashboard: expired through end of today
   const start = startOfTodayIst();
+  const end = endOfDayIst(start);
   const in30 = endOfDayIst(addDays(start, 30));
+  if (raw === "expired") {
+    const expired = await prisma.batch.findMany({
+      where: { qtyOnHand: { gt: 0 }, expiryDate: { lte: end } },
+      include: { item: true },
+      orderBy: { expiryDate: "asc" },
+    });
+    return csvResponse(
+      `expired-stock-${stamp}.csv`,
+      ["Item", "SKU", "Lot", "Qty", "Unit", "Expired"],
+      expired.map((b) => [
+        b.item.name,
+        b.item.sku,
+        b.lotNo,
+        b.qtyOnHand,
+        b.item.unit,
+        formatDate(b.expiryDate),
+      ]),
+    );
+  }
+
   const batches = await prisma.batch.findMany({
-    where: { qtyOnHand: { gt: 0 }, expiryDate: { lte: in30 } },
+    where: { qtyOnHand: { gt: 0 }, expiryDate: { gt: end, lte: in30 } },
     include: { item: true },
     orderBy: { expiryDate: "asc" },
   });

@@ -10,6 +10,6 @@ export const SITE_DESCRIPTION =
 
 export const CONTACT = {
   phone: "7028832038",
-  email: "accounts@yatharthfoods.in",
+  email: "accounts@yatharthafoods.in",
   address: "Shop No. 29, Harshal Heights, PCMC Link Road, Gawade Nagar, Chinchwad, Pune — 411033",
 } as const;

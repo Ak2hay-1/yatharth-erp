@@ -128,6 +128,7 @@ export function shownCosting(
     rateWholesale: number;
     rateDistributor: number;
     rateMrp: number;
+    sellingPrice: number;
     mfgCostSource: string;
     mfgCostUpdatedAt: Date | null;
     overrideB2bPct: number | null;
@@ -141,29 +142,39 @@ export function shownCosting(
   const saved = item.mfgCostUpdatedAt != null || item.mfgCostSource !== "NONE";
   const mfgCost = saved ? item.mfgCost : computedMfg;
   const suggested = ratesFromMfg(mfgCost, resolveMarkups(company, item));
+  const masterPrice = item.sellingPrice > 0 ? item.sellingPrice : 0;
   const rates = saved
     ? {
-        usp: item.usp,
-        rateB2b: item.rateB2b,
+        usp: item.usp > 0 ? item.usp : masterPrice,
+        rateB2b: item.rateB2b > 0 ? item.rateB2b : masterPrice,
         rateWholesale: item.rateWholesale,
         rateDistributor: item.rateDistributor,
-        rateMrp: item.rateMrp,
+        rateMrp: item.rateMrp > 0 ? item.rateMrp : masterPrice,
       }
-    : suggested;
+    : {
+        usp: suggested.usp > 0 ? suggested.usp : masterPrice,
+        rateB2b: suggested.rateB2b > 0 ? suggested.rateB2b : masterPrice,
+        rateWholesale: suggested.rateWholesale,
+        rateDistributor: suggested.rateDistributor,
+        rateMrp: suggested.rateMrp > 0 ? suggested.rateMrp : masterPrice,
+      };
   return {
     mfgCost,
     ...rates,
+    usingMasterPriceFallback: mfgCost <= 0 && masterPrice > 0 && (item.usp <= 0 || suggested.usp <= 0),
     missingPurchasePrices: mfgCost <= 0 && computedMfg <= 0,
   };
 }
 
-export function ratesFromMfg(mfgCost: number, markups: MarkupPcts) {
+export function ratesFromMfg(mfgCost: number, markups: MarkupPcts, unitsPerPkt = 1) {
+  const rateB2b = suggestedRate(mfgCost, markups.b2b);
   return {
-    rateB2b: suggestedRate(mfgCost, markups.b2b),
+    rateB2b,
     rateWholesale: suggestedRate(mfgCost, markups.wholesale),
     rateDistributor: suggestedRate(mfgCost, markups.distributor),
     rateMrp: suggestedRate(mfgCost, markups.mrp),
-    usp: suggestedRate(mfgCost, markups.b2b),
+    // USP = unit/piece selling price when pack piece count is known.
+    usp: unitsPerPkt > 1 ? Math.round((rateB2b / unitsPerPkt) * 100) / 100 : rateB2b,
   };
 }
 

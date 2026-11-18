@@ -111,11 +111,13 @@ async function signedFetch(
     headers.set("Content-Type", "application/json");
   }
 
+  const timeoutMs = init?.multipart ? 60_000 : 12_000;
   return fetch(`${base}${routePath}`, {
     ...init,
     method,
     headers,
     body: init?.body ?? (bodyText === null ? undefined : bodyText),
+    signal: init?.signal ?? AbortSignal.timeout(timeoutMs),
   });
 }
 
@@ -136,22 +138,50 @@ function tierSortOrder(tier: string): number {
   return 100;
 }
 
-function toCategory(lane: string, vegNonVeg?: string | null): "veg" | "non-veg" {
+function toCategory(
+  lane: string,
+  vegNonVeg?: string | null,
+  hint?: { sku?: string; name?: string },
+): "veg" | "non-veg" {
   if (vegNonVeg === "NON_VEG") return "non-veg";
   if (vegNonVeg === "VEG") return "veg";
-  if (lane === "CHICKEN") return "non-veg";
+  const text = `${hint?.sku ?? ""} ${hint?.name ?? ""}`.toLowerCase();
+  if (lane === "CHICKEN" || /chk|chicken|non[\s-]?veg/.test(text)) return "non-veg";
   return "veg";
 }
 
-function parseUnitsPerPkt(packSize: string, servingsPerPack?: string | null): number {
+export function parseUnitsPerPkt(
+  packSize: string,
+  servingsPerPack?: string | null,
+  productName?: string | null,
+): number {
   const fromServings = Number(String(servingsPerPack ?? "").trim());
   if (Number.isFinite(fromServings) && fromServings > 0) return Math.trunc(fromServings);
-  const match = String(packSize ?? "").match(/(\d+)\s*[x×]/i);
-  if (match) {
-    const n = Number(match[1]);
-    if (Number.isFinite(n) && n > 0) return Math.trunc(n);
+  const text = `${packSize ?? ""} ${productName ?? ""}`;
+  const patterns = [
+    /(\d+)\s*\/\s*pkt/i,
+    /(\d+)\s*[x×]/i,
+    /(\d+)\s*(?:pcs?|pieces?|units?|pkt|packs?)\b/i,
+    /pack\s+of\s+(\d+)/i,
+    /\((\d+)\s*\/\s*pkt\)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const n = Number(match[1]);
+      if (Number.isFinite(n) && n > 0) return Math.trunc(n);
+    }
   }
   return 1;
+}
+
+/** Unit selling price = packet B2B ÷ pieces when pieces are known. */
+export function unitSellingPrice(rateB2b: number, unitsPerPkt: number, storedUsp?: number) {
+  if (unitsPerPkt > 1 && rateB2b > 0) {
+    return Math.round((rateB2b / unitsPerPkt) * 100) / 100;
+  }
+  if (storedUsp != null && storedUsp > 0) return storedUsp;
+  return rateB2b;
 }
 
 type CatalogItem = {
@@ -159,7 +189,9 @@ type CatalogItem = {
   name: string;
   lane: string;
   tier: string;
+  packType: string;
   packSize: string;
+  websiteDescription: string;
   usp: number;
   rateB2b: number;
   sellingPrice: number;
@@ -201,9 +233,11 @@ async function loadFinishedCatalog(): Promise<CatalogItem[]> {
     name: item.name,
     lane: item.lane,
     tier: item.tier,
+    packType: item.packType,
     packSize: item.packSize,
+    websiteDescription: item.websiteDescription,
     usp: item.usp,
-    rateB2b: item.rateB2b || item.sellingPrice,
+    rateB2b: item.rateB2b,
     sellingPrice: item.sellingPrice,
     isActive: item.isActive,
     updatedAt: item.mfgCostUpdatedAt ?? item.createdAt,
@@ -214,20 +248,26 @@ async function loadFinishedCatalog(): Promise<CatalogItem[]> {
 
 function mapProductsPayload(items: CatalogItem[]) {
   return {
-    products: items.map((item, index) => ({
-      sku: item.sku,
-      name: item.name,
-      category: toCategory(item.lane, item.label?.vegNonVeg),
-      lane: item.lane === "NONE" ? "" : item.lane,
-      tier: item.tier === "NONE" ? "" : item.tier,
-      packSize: item.packSize,
-      unitsPerPkt: parseUnitsPerPkt(item.packSize, item.label?.servingsPerPack),
-      usp: item.usp > 0 ? item.usp : item.sellingPrice,
-      rateB2b: item.rateB2b > 0 ? item.rateB2b : item.sellingPrice,
-      isActive: item.isActive,
-      sortOrder: tierSortOrder(item.tier) + index,
-      erpUpdatedAt: (item.updatedAt ?? new Date()).toISOString(),
-    })),
+    products: items.map((item, index) => {
+      const unitsPerPkt = parseUnitsPerPkt(item.packSize, item.label?.servingsPerPack, item.name);
+      const rateB2b = item.rateB2b;
+      return {
+        sku: item.sku,
+        name: item.name,
+        category: toCategory(item.lane, item.label?.vegNonVeg, item),
+        lane: item.lane === "NONE" ? "" : item.lane,
+        tier: item.tier === "NONE" ? "" : item.tier,
+        packType: item.packType === "NONE" ? "" : item.packType,
+        packSize: item.packSize,
+        unitsPerPkt,
+        usp: unitSellingPrice(rateB2b, unitsPerPkt, item.usp),
+        rateB2b,
+        description: item.websiteDescription || "",
+        isActive: item.isActive,
+        sortOrder: tierSortOrder(item.tier) + index,
+        erpUpdatedAt: (item.updatedAt ?? new Date()).toISOString(),
+      };
+    }),
   };
 }
 

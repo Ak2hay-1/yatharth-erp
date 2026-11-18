@@ -40,40 +40,34 @@ export async function saveCompany(formData: FormData) {
   await requireRole(SUPER_ADMIN_ONLY);
   const state = requiredString(formData.get("state"), "State");
   const [stateCode, ...rest] = state.split("|");
+  const gstEnabled = formData.get("gstEnabled") === "on" || formData.get("gstEnabled") === "true";
+  const gstin = String(formData.get("gstin") ?? "").trim();
+  if (gstEnabled && !gstin) {
+    throw new Error("GSTIN is required when Charge GST is enabled");
+  }
+  const companyData = {
+    name: requiredString(formData.get("name"), "Name"),
+    legalName: requiredString(formData.get("legalName"), "Legal name"),
+    gstin,
+    gstEnabled,
+    fssai: requiredString(formData.get("fssai"), "FSSAI"),
+    address: requiredString(formData.get("address"), "Address"),
+    city: requiredString(formData.get("city"), "City"),
+    state: rest.join("|") || stateCode,
+    stateCode,
+    pincode: requiredString(formData.get("pincode"), "PIN"),
+    phone: String(formData.get("phone") ?? ""),
+    email: String(formData.get("email") ?? ""),
+    bankName: String(formData.get("bankName") ?? ""),
+    bankAccount: String(formData.get("bankAccount") ?? ""),
+    ifsc: String(formData.get("ifsc") ?? ""),
+  };
   await prisma.company.upsert({
     where: { id: "default" },
-    update: {
-      name: requiredString(formData.get("name"), "Name"),
-      legalName: requiredString(formData.get("legalName"), "Legal name"),
-      gstin: requiredString(formData.get("gstin"), "GSTIN"),
-      fssai: requiredString(formData.get("fssai"), "FSSAI"),
-      address: requiredString(formData.get("address"), "Address"),
-      city: requiredString(formData.get("city"), "City"),
-      state: rest.join("|") || stateCode,
-      stateCode,
-      pincode: requiredString(formData.get("pincode"), "PIN"),
-      phone: String(formData.get("phone") ?? ""),
-      email: String(formData.get("email") ?? ""),
-      bankName: String(formData.get("bankName") ?? ""),
-      bankAccount: String(formData.get("bankAccount") ?? ""),
-      ifsc: String(formData.get("ifsc") ?? ""),
-    },
+    update: companyData,
     create: {
       id: "default",
-      name: requiredString(formData.get("name"), "Name"),
-      legalName: requiredString(formData.get("legalName"), "Legal name"),
-      gstin: requiredString(formData.get("gstin"), "GSTIN"),
-      fssai: requiredString(formData.get("fssai"), "FSSAI"),
-      address: requiredString(formData.get("address"), "Address"),
-      city: requiredString(formData.get("city"), "City"),
-      state: rest.join("|") || stateCode,
-      stateCode,
-      pincode: requiredString(formData.get("pincode"), "PIN"),
-      phone: String(formData.get("phone") ?? ""),
-      email: String(formData.get("email") ?? ""),
-      bankName: String(formData.get("bankName") ?? ""),
-      bankAccount: String(formData.get("bankAccount") ?? ""),
-      ifsc: String(formData.get("ifsc") ?? ""),
+      ...companyData,
     },
   });
   void enqueueWebsiteSync("company");

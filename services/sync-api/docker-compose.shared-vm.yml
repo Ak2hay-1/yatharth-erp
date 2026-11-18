@@ -1,4 +1,4 @@
-# Shared VM (95.135.254.46): run alongside other apps (no Caddy of our own).
+# Shared VM (95.135.254.73): run alongside other apps (no Caddy of our own).
 # Host nginx owns :80/:443 and proxies api.yatharthafoods.in → 127.0.0.1:3001.
 #
 # Usage:

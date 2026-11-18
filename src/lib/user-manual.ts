@@ -91,12 +91,15 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       {
         type: "ol",
         items: [
-          "Settings — enter company name, address, GSTIN, FSSAI, phone, and bank details (these print on invoices).",
+          "Settings — enter company name, address, FSSAI, phone, and bank details. Turn on Charge GST only when you have a GSTIN (required when GST is on); invoices then add CGST/SGST/IGST from item rates.",
           "Settings → Users — create Admin and Staff accounts; change default passwords.",
           "Masters → Items — add raw, packing, and finished SKUs.",
           "Masters → Parties — add suppliers and customers.",
           "Masters → Recipes — link each finished product to its ingredients.",
+          "Masters → Product costing / Labelling as needed for rates and pack copy.",
+          "Masters → Website catalog — add finished SKUs, pack shots, USP and B2B rates for the public site.",
           "Optional: upload SOPs under Quality → SOPs.",
+          "Settings → Website sync — enable API URL + secret, then Publish to website.",
         ],
       },
     ],
@@ -115,13 +118,17 @@ export const MANUAL_SECTIONS: ManualSection[] = [
           ["Sell", "Sales orders, Samples & trials, Counter sale, Invoices", "Orders and GST bills"],
           ["Money", "Payments, Reports", "Cash in/out and registers"],
           ["Quality", "Complaints, SOPs, Documents", "Feedback and plant files"],
-          ["Masters", "Items, Parties, Recipes", "Setup lists"],
-          ["Setup", "Settings", "Company and users (Super Admin)"],
+          [
+            "Masters",
+            "Items, Parties, Recipes, Product costing, Labelling, Product images, Website catalog",
+            "Setup lists and public catalogue",
+          ],
+          ["Setup", "Settings", "Company, users, website sync (Super Admin)"],
         ],
       },
       {
         type: "p",
-        text: "Use the search box at the top of the sidebar (Invoice, party, SKU) to find a customer, supplier, invoice number, or item code quickly.",
+        text: "Use the search box at the top of the sidebar (Invoice, party, SKU) to find a customer, supplier, invoice number, or item code quickly. Collapse the sidebar with the chevron if links are hard to reach at high zoom.",
       },
     ],
   },
@@ -284,11 +291,12 @@ export const MANUAL_SECTIONS: ManualSection[] = [
         type: "ul",
         items: [
           "Items — SKU, name, unit, type, HSN, GST %, shelf life, prices, lane, tier, pack (Admin+ edits).",
-          "Parties — customer/supplier, B2B/B2C, GSTIN, credit limit, lifecycle Prospect → Customer.",
+          "Parties — customer/supplier, B2B/B2C, GSTIN, credit limit, lifecycle Prospect → Customer (suppliers show as Supplier, not Customer).",
           "Recipes — finished SKU + ingredients + output qty; scale preview; language tabs for name/notes.",
-          "Product costing — manufacturing cost, USP, B2B / wholesale / distributor / MRP from markup %.",
+          "Product costing — manufacturing cost, USP, B2B / wholesale / distributor / MRP from markup %. USP and B2B are the public price source of truth; selling price is the internal sales default.",
           "Labelling — ingredient statement + nutrition panel; print preview for pack artwork.",
           "Product images — pack shots and record photos linked to SKUs.",
+          "Website catalog — finished SKUs published to yatharthafoods.in (pack shot, USP, B2B, pack size).",
         ],
       },
       {
@@ -314,7 +322,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       {
         type: "ul",
         items: [
-          "Company details print on invoices — keep GSTIN and FSSAI correct.",
+          "Company details print on invoices — keep Charge GST, GSTIN, and FSSAI correct.",
           "Default rate markups (B2B, wholesale, distributor, MRP %) for Product costing.",
           "Users — only Super Admin creates logins; can deactivate, change role, reset password.",
           "Database backups are managed by the cloud host (Neon) — not via a local file download.",

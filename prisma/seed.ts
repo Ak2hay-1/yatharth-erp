@@ -58,6 +58,7 @@ export async function seedDatabase() {
       name: "YATHARTHA Foods & Beverages",
       legalName: "YATHARTHA Foods & Beverages",
       gstin: "",
+      gstEnabled: false,
       fssai: "21526037002727",
       address: "Shop No. 29, Harshal Heights",
       city: "Pune",

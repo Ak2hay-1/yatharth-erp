@@ -7,15 +7,17 @@ import { requireRole } from "@/lib/session";
 import { MANAGEMENT } from "@/lib/permissions";
 import { parseNum, requiredString } from "@/lib/utils";
 import { enqueueWebsiteSync } from "@/lib/website-sync";
+import { resolveVegMark } from "@/lib/veg-mark";
 
-function nutritionFields(formData: FormData) {
+function nutritionFields(formData: FormData, item?: { lane?: string; sku?: string; name?: string }) {
+  const rawVeg = (String(formData.get("vegNonVeg") || "NA") as VegMark) || "NA";
   return {
     ingredientStatement: String(formData.get("ingredientStatement") ?? "").trim(),
     allergens: String(formData.get("allergens") ?? "").trim(),
     containsMayContain: String(formData.get("containsMayContain") ?? "").trim(),
     claims: String(formData.get("claims") ?? "").trim(),
     netQuantity: String(formData.get("netQuantity") ?? "").trim(),
-    vegNonVeg: (String(formData.get("vegNonVeg") || "NA") as VegMark) || "NA",
+    vegNonVeg: resolveVegMark(rawVeg, item?.lane, { sku: item?.sku, name: item?.name }),
     servingSize: String(formData.get("servingSize") ?? "").trim(),
     servingsPerPack: String(formData.get("servingsPerPack") ?? "").trim(),
     energyKcal100: parseNum(formData.get("energyKcal100")),
@@ -71,7 +73,7 @@ export async function saveItemLabel(itemId: string, formData: FormData) {
   if (!item || item.type !== "FINISHED") throw new Error("Finished item required.");
 
   const lines = parseIngredientLines(formData);
-  const data = nutritionFields(formData);
+  const data = nutritionFields(formData, item);
   if (!data.ingredientStatement && lines.length) {
     data.ingredientStatement = composeStatement(lines);
   }
@@ -105,9 +107,15 @@ export async function saveItemLabel(itemId: string, formData: FormData) {
 export async function ensureItemLabel(itemId: string) {
   await requireRole(MANAGEMENT);
   requiredString(itemId, "Item");
+  const item = await prisma.item.findUnique({
+    where: { id: itemId },
+    select: { lane: true, sku: true, name: true },
+  });
+  if (!item) throw new Error("Item not found");
+  const vegNonVeg = resolveVegMark("NA", item.lane, item);
   await prisma.itemLabel.upsert({
     where: { itemId },
-    create: { itemId },
+    create: { itemId, vegNonVeg },
     update: {},
   });
   revalidatePath("/masters/labelling");

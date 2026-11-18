@@ -59,12 +59,24 @@ export function registerPublicRoutes(app: FastifyInstance, prisma: PrismaClient)
         unitsPerPkt: true,
         rateB2b: true,
         packSize: true,
+        syncedAt: true,
+        erpUpdatedAt: true,
       },
     });
 
     const veg = products.filter((p: { category: string }) => p.category === "veg");
     const nonVeg = products.filter((p: { category: string }) => p.category === "non-veg");
-    return { veg, nonVeg, updatedAt: new Date().toISOString() };
+    const latest = products.reduce<Date | null>((acc, p) => {
+      const stamp = p.erpUpdatedAt ?? p.syncedAt;
+      if (!stamp) return acc;
+      if (!acc || stamp.getTime() > acc.getTime()) return stamp;
+      return acc;
+    }, null);
+    return {
+      veg,
+      nonVeg,
+      updatedAt: (latest ?? new Date()).toISOString(),
+    };
   });
 
   app.post("/v1/public/contact", async (request, reply) => {

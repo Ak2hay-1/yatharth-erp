@@ -46,6 +46,8 @@ export async function recordPayment(formData: FormData) {
       if (direction === "IN") {
         const inv = await tx.invoice.findUnique({ where: { id: a.id } });
         if (!inv) throw new Error("Invoice not found");
+        if (inv.status === "CANCELLED") throw new Error(`Cannot allocate payment to cancelled invoice ${inv.number}`);
+        if (inv.status !== "CONFIRMED") throw new Error(`Invoice ${inv.number} is not confirmed`);
         const due = round2(inv.total - inv.paid);
         if (a.amount - due > 0.05) throw new Error(`Over-allocation on ${inv.number}`);
         await tx.paymentAllocation.create({

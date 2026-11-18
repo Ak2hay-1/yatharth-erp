@@ -8,7 +8,7 @@ import { MANAGEMENT } from "@/lib/permissions";
 import { parseNum, requiredString } from "@/lib/utils";
 import { itemUnitCost, recipeUnitCost, ratesFromMfg, resolveMarkups, getCompanyMarkups } from "@/server/costing";
 import { removeDocumentFile, saveDocumentFile } from "@/lib/document-storage";
-import { enqueueWebsiteSync } from "@/lib/website-sync";
+import { enqueueWebsiteSync, parseUnitsPerPkt } from "@/lib/website-sync";
 
 function parseOptionalPct(value: FormDataEntryValue | null): number | null {
   const raw = String(value ?? "").trim();
@@ -32,8 +32,15 @@ export async function saveItemCosting(itemId: string, formData: FormData) {
     overrideDistributorPct: parseOptionalPct(formData.get("overrideDistributorPct")),
     overrideMrpPct: parseOptionalPct(formData.get("overrideMrpPct")),
   };
+  const label = await prisma.itemLabel.findUnique({
+    where: { itemId },
+    select: { servingsPerPack: true },
+  });
+  const unitsPerPkt = parseUnitsPerPkt(item.packSize, label?.servingsPerPack, item.name);
   const markups = resolveMarkups(company, overrides);
-  const suggested = ratesFromMfg(mfgCost, markups);
+  const suggested = ratesFromMfg(mfgCost, markups, unitsPerPkt);
+  const rateB2b = applySuggested ? suggested.rateB2b : parseNum(formData.get("rateB2b"));
+  const usp = applySuggested ? suggested.usp : parseNum(formData.get("usp"));
 
   await prisma.item.update({
     where: { id: itemId },
@@ -42,13 +49,13 @@ export async function saveItemCosting(itemId: string, formData: FormData) {
       mfgCostSource: (String(formData.get("mfgCostSource") || "MANUAL") as MfgCostSource) || "MANUAL",
       mfgCostUpdatedAt: new Date(),
       ...overrides,
-      usp: applySuggested ? suggested.usp : parseNum(formData.get("usp")),
-      rateB2b: applySuggested ? suggested.rateB2b : parseNum(formData.get("rateB2b")),
+      usp,
+      rateB2b,
       rateWholesale: applySuggested ? suggested.rateWholesale : parseNum(formData.get("rateWholesale")),
       rateDistributor: applySuggested ? suggested.rateDistributor : parseNum(formData.get("rateDistributor")),
       rateMrp: applySuggested ? suggested.rateMrp : parseNum(formData.get("rateMrp")),
-      // keep sellingPrice aligned with USP for sales defaults
-      sellingPrice: applySuggested ? suggested.usp : parseNum(formData.get("usp")),
+      // Sales defaults use packet B2B rate; USP is unit/piece price on the e-catalog.
+      sellingPrice: rateB2b,
     },
   });
 
@@ -75,10 +82,27 @@ export async function refreshMfgCost(itemId: string, formData: FormData) {
   }
 
   const company = await getCompanyMarkups();
-  const item = await prisma.item.findUnique({ where: { id: itemId } });
+  const item = await prisma.item.findUnique({
+    where: { id: itemId },
+    include: { label: { select: { servingsPerPack: true } } },
+  });
   if (!item) throw new Error("Item not found");
+  const unitsPerPkt = parseUnitsPerPkt(item.packSize, item.label?.servingsPerPack, item.name);
   const markups = resolveMarkups(company, item);
-  const rates = ratesFromMfg(mfgCost, markups);
+  const rates = ratesFromMfg(mfgCost, markups, unitsPerPkt);
+
+  // Never overwrite stored channel rates with zeros when BOM/batch cost is missing.
+  const ratePatch =
+    mfgCost > 0
+      ? {
+          usp: rates.usp,
+          rateB2b: rates.rateB2b,
+          rateWholesale: rates.rateWholesale,
+          rateDistributor: rates.rateDistributor,
+          rateMrp: rates.rateMrp,
+          sellingPrice: rates.rateB2b,
+        }
+      : {};
 
   await prisma.item.update({
     where: { id: itemId },
@@ -86,12 +110,7 @@ export async function refreshMfgCost(itemId: string, formData: FormData) {
       mfgCost,
       mfgCostSource: source,
       mfgCostUpdatedAt: new Date(),
-      usp: rates.usp,
-      rateB2b: rates.rateB2b,
-      rateWholesale: rates.rateWholesale,
-      rateDistributor: rates.rateDistributor,
-      rateMrp: rates.rateMrp,
-      sellingPrice: rates.usp,
+      ...ratePatch,
     },
   });
 

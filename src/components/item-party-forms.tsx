@@ -37,10 +37,10 @@ export function ItemForm({
         />
       </Field>
       <Field label="Type">
-        <Select name="type" defaultValue={item?.type ?? seed?.type ?? "FINISHED"} required>
-          <option value="FINISHED">Finished goods</option>
+        <Select name="type" defaultValue={item?.type ?? seed?.type ?? "RAW"} required>
           <option value="RAW">Raw material</option>
           <option value="PACKING">Packing</option>
+          <option value="FINISHED">Finished goods</option>
         </Select>
       </Field>
       <Field label="Unit">

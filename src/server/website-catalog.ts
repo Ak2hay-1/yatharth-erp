@@ -8,35 +8,45 @@ import { requireRole } from "@/lib/session";
 import { parseNum, requiredString } from "@/lib/utils";
 import { runAction } from "@/lib/run-action";
 import { enqueueWebsiteSync } from "@/lib/website-sync";
+import { resolveVegMark } from "@/lib/veg-mark";
 
 const VEG_MARKS = new Set<VegMark>(["NA", "VEG", "NON_VEG"]);
 
-function vegMarkOf(value: FormDataEntryValue | null): VegMark {
+function vegMarkOf(
+  value: FormDataEntryValue | null,
+  lane: ProductLane,
+  hint: { sku: string; name: string },
+): VegMark {
   const mark = String(value || "NA") as VegMark;
-  return VEG_MARKS.has(mark) ? mark : "NA";
+  const explicit = VEG_MARKS.has(mark) ? mark : "NA";
+  return resolveVegMark(explicit, lane, hint);
 }
 
 function catalogItemData(formData: FormData) {
   const usp = parseNum(formData.get("usp"));
   const rateB2b = parseNum(formData.get("rateB2b"));
   const sellingPrice = usp > 0 ? usp : parseNum(formData.get("sellingPrice"));
+  const lane = String(formData.get("lane") || "NONE") as ProductLane;
+  const sku = requiredString(formData.get("sku"), "SKU");
+  const name = requiredString(formData.get("name"), "Name");
   return {
-    sku: requiredString(formData.get("sku"), "SKU"),
-    name: requiredString(formData.get("name"), "Name"),
+    sku,
+    name,
     type: "FINISHED" as const,
     unit: requiredString(formData.get("unit") || "pcs", "Unit"),
     hsn: String(formData.get("hsn") ?? "").trim(),
     gstRate: parseNum(formData.get("gstRate"), 5),
     shelfLifeDays: Math.round(parseNum(formData.get("shelfLifeDays"), 30)),
-    lane: (String(formData.get("lane") || "NONE") as ProductLane),
+    lane,
     tier: (String(formData.get("tier") || "NONE") as SkuTier),
     packType: (String(formData.get("packType") || "NONE") as PackType),
     packSize: String(formData.get("packSize") ?? "").trim(),
+    websiteDescription: String(formData.get("websiteDescription") ?? "").trim(),
     usp,
     rateB2b,
     sellingPrice,
     isActive: formData.get("activeFlag") === "1" ? formData.get("isActive") === "true" : true,
-    vegNonVeg: vegMarkOf(formData.get("vegNonVeg")),
+    vegNonVeg: vegMarkOf(formData.get("vegNonVeg"), lane, { sku, name }),
     servingsPerPack: String(formData.get("servingsPerPack") ?? "").trim(),
   };
 }

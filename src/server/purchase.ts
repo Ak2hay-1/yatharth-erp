@@ -8,7 +8,7 @@ import { FINANCE, OPS } from "@/lib/permissions";
 import { addDays, parseNum, requireCalendarDate, requiredString, round3, startOfTodayIst } from "@/lib/utils";
 import { nextNumberTx } from "@/server/numbers";
 import { addStock, addStockMany, postStockAdjustments } from "@/server/stock";
-import { isInterstate, sumTax, taxLine } from "@/lib/gst";
+import { effectiveGstRate, isInterstate, sumTax, taxLine } from "@/lib/gst";
 import { runAction } from "@/lib/run-action";
 
 type Line = { itemId: string; qty: number; rate: number; lotNo?: string; mfgDate?: string; expiryDate?: string };
@@ -201,10 +201,20 @@ export async function confirmGoodsReceipt(id: string) {
       `;
     }
     await tx.goodsReceipt.update({ where: { id }, data: { status: "CONFIRMED" } });
+    // Last purchase rate drives Product Costing (recipe unit cost uses item.purchasePrice).
+    for (const line of grn.lines) {
+      if (line.rate > 0) {
+        await tx.item.update({
+          where: { id: line.itemId },
+          data: { purchasePrice: line.rate },
+        });
+      }
+    }
     await refreshPoReceiptStatus(tx, grn.poId);
   });
   revalidatePath(`/purchase/grn/${id}`);
   revalidatePath("/inventory/stock");
+  revalidatePath("/masters/costing");
   });
 }
 
@@ -380,13 +390,14 @@ export async function createSupplierBill(formData: FormData) {
 
   const computed = grn.lines.map((line) => {
     const rate = line.rate;
-    const tax = taxLine({ qty: line.qty, rate, gstRate: line.item.gstRate }, interstate);
+    const gstRate = effectiveGstRate(line.item.gstRate, company.gstEnabled);
+    const tax = taxLine({ qty: line.qty, rate, gstRate }, interstate);
     return {
       itemId: line.itemId,
       qty: line.qty,
       rate,
       hsn: line.item.hsn,
-      gstRate: line.item.gstRate,
+      gstRate,
       ...tax,
     };
   });

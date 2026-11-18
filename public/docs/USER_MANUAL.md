@@ -1,7 +1,8 @@
 # YATHARTHA Foods ERP — User Manual
 
 **For plant office staff** · Easy guide for new users  
-**Version:** matches the current app · **Last updated:** August 2026
+**Version:** matches the current app · **Last updated:** November 2026  
+**Source of truth for Help:** `src/lib/user-manual.ts` (keep this markdown aligned with that file).
 
 ---
 
@@ -38,7 +39,7 @@ It is meant for **one office PC** (or a small team sharing the same system). The
 
 ### What this version does *not* include
 
-HR/payroll, lab QC hold/release, government e-invoice (IRN) / e-way bill APIs, distributor login, consumer website, or barcode scanners.
+HR/payroll, lab QC hold/release, government e-invoice (IRN) / e-way bill APIs, distributor login, or barcode scanners. The public marketing website is separate (Settings → Website sync).
 
 ---
 
@@ -46,7 +47,7 @@ HR/payroll, lab QC hold/release, government e-invoice (IRN) / e-way bill APIs, d
 
 ### 1.1 Sign in
 
-1. Open the ERP in your browser (usually `http://localhost:3000` on the office PC).
+1. Open the plant ERP URL in your browser (the address your Super Admin shared — not a public signup page).
 2. Enter the **email** and **password** given to you by the Super Admin.
 3. Click **Sign in**.
 
@@ -72,18 +73,21 @@ Your name and role appear at the bottom of the sidebar.
 
 Do this once when the plant starts using the system:
 
-1. **Settings** → fill **company** trade name, legal name, address, **GSTIN**, **FSSAI**, phone, bank details (these print on invoices).
+1. **Settings** → fill **company** trade name, legal name, address, **FSSAI**, phone, bank details. Turn on **Charge GST** only when you have a **GSTIN** (required when GST is on).
 2. **Settings → Users** → create Admin and Staff accounts. Change default passwords.
 3. **Masters → Items** → add raw, packing, and finished SKUs.
 4. **Masters → Parties** → add suppliers and customers.
 5. **Masters → Recipes** → link each finished product to its ingredients.
-6. Optional: upload SOPs under **Quality → SOPs**.
+6. **Masters → Product costing** / **Labelling** as needed for rates and pack copy.
+7. **Masters → Website catalog** — finished SKUs, pack shots, USP and B2B rates for the public site.
+8. Optional: upload SOPs under **Quality → SOPs**.
+9. **Settings → Website sync** — enable API URL + secret, then **Publish to website**.
 
 ---
 
 ## 2. The menu (sidebar)
 
-The left sidebar is grouped like a plant day:
+The left sidebar is grouped like a plant day. Use the collapse control if links are hard to reach at high zoom.
 
 | Group | Menu items | Plain meaning |
 |---|---|---|
@@ -93,8 +97,8 @@ The left sidebar is grouped like a plant day:
 | **Sell** | Sales orders, Samples & trials, Counter sale, Invoices | Orders and GST bills |
 | **Money** | Payments, Reports | Cash in/out and registers |
 | **Quality** | Complaints, SOPs, Documents | Feedback and plant files |
-| **Masters** | Items, Parties, Recipes | Master lists (setup data) |
-| **Setup** | Settings | Company + users (Super Admin) |
+| **Masters** | Items, Parties, Recipes, Product costing, Labelling, Product images, Website catalog | Master lists + public catalogue |
+| **Setup** | Settings | Company, users, website sync (Super Admin) |
 
 ### Search
 
@@ -226,6 +230,7 @@ Use this path when winning a new hotel / restaurant / institutional buyer:
 - **Wastage** by cause
 - Stock **expiring within 30 days**
 - Flags that help decide which SKUs to discontinue
+- **Download CSV** on each section for Excel
 
 ---
 
@@ -233,14 +238,15 @@ Use this path when winning a new hotel / restaurant / institutional buyer:
 
 ### Complaints loop
 
-1. **Quality → Complaints →** New — customer, SKU, lot, issue type, description.
+1. **Quality → Complaints →** New — customer, SKU, lot, issue type, description; optionally attach photos.
 2. Move the case through:  
    **Reported → Root cause → Change → New sample → Customer test → Standardised → Closed**
 3. Fill root cause, correction, resample notes, and link to SOP/BMR/QC notes as needed.
+4. Upload more images/documents on the complaint, then **Download RCA pack** (zip of summary + files).
 
 ### SOPs and documents
 
-- **Quality → SOPs** — upload standard operating procedures (PDF/images/Office files, up to 25 MB).
+- **Quality → SOPs** — write procedure text, add a Mermaid flowchart, optionally attach a file (up to 25 MB). Switch language: Eng-IN / Eng-US / Eng-UK / Hindi / Marathi.
 - **Quality → Documents** — other plant files (FSSAI, training, policy, etc.).
 
 ---
@@ -263,8 +269,12 @@ Negative adjust issues stock by FEFO. Always tag the **cause** so reports stay m
 | Master | Who edits | What to enter |
 |---|---|---|
 | **Items** | Admin+ | SKU, name, unit, type (raw/packing/finished), HSN, GST %, shelf life, prices, lane, tier, pack |
-| **Parties** | Admin+ | Name, customer/supplier/both, B2B/B2C, GSTIN, credit limit, payment terms, lifecycle (Prospect → Customer) |
-| **Recipes** | Admin+ | Finished SKU + ingredient lines + output qty; use scale preview for planned batches |
+| **Parties** | Admin+ | Name, customer/supplier/both, B2B/B2C, GSTIN, credit limit, payment terms, lifecycle (Prospect → Customer). Suppliers show as Supplier, not Customer. |
+| **Recipes** | Admin+ | Finished SKU + ingredient lines + output qty; language tabs for translated names/notes |
+| **Product costing** | Admin+ (Finance can view) | Manufacturing cost, USP, B2B / wholesale / distributor / MRP from markup %. USP and B2B are the public price source of truth; selling price is the internal sales default. |
+| **Labelling** | Admin+ | Ingredient statement + nutrition panel; print preview for pack artwork |
+| **Product images** | Ops | Pack shots and record photos linked to SKUs |
+| **Website catalog** | Admin+ | Finished SKUs, pack shots, USP/B2B for yatharthafoods.in |
 
 Staff can **view** items and parties but cannot create/edit them.
 
@@ -284,13 +294,13 @@ Open it every morning before planning purchases and production.
 
 ---
 
-## 12. Settings & backup (Super Admin)
+## 12. Settings (Super Admin)
 
-1. **Settings** — company GSTIN, FSSAI, address, bank (appear on printed invoices).
-2. **Settings → Users** — create Admin / Staff / Super Admin accounts.
-3. **Backup & restore** — download a copy of the SQLite database (`.db`), or enable **automatic backup** to a folder you choose (USB / cloud), with a time of day and how often (hours, days, or weeks). Restore only when you intend to replace current data.
-
-**Tip:** Keep backups on a USB drive or cloud folder. The app must be open at the scheduled time; a missed backup runs the next time you open it.
+1. **Settings** — Charge GST toggle, GSTIN (when GST on), FSSAI, address, bank (appear on printed invoices).
+2. **Default rate markups** — B2B, wholesale, distributor, MRP % used by Product costing.
+3. **Settings → Users** — create Admin / Staff / Super Admin; deactivate, change role, or reset password.
+4. **Website sync** — enable, set the VM API URL and shared secret, then **Publish to website** so the public price list stays current.
+5. **Database backups** — managed by the cloud host (Neon). No local `.db` download in the web ERP.
 
 ---
 
@@ -302,7 +312,7 @@ Open it every morning before planning purchases and production.
 4. Process **sales orders** / **counter** bills; print invoices & challans.
 5. Log any **complaints** the same day.
 6. (Admin) Record **payments** received or paid.
-7. (Super Admin, periodically) Take a **backup**.
+7. (Super Admin) After price or photo changes, **Publish to website**.
 
 ---
 

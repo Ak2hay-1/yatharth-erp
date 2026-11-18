@@ -32,9 +32,9 @@ function PriceTable({
           <thead className="bg-cream text-left text-xs uppercase tracking-wide text-muted">
             <tr>
               <th className="px-4 py-3">Product</th>
-              <th className="px-4 py-3">USP (Rs.)</th>
-              <th className="px-4 py-3">Per PKT</th>
-              <th className="px-4 py-3">B2B rate (Rs.)</th>
+              <th className="px-4 py-3">Unit price (Rs.)</th>
+              <th className="px-4 py-3">Pcs / pkt</th>
+              <th className="px-4 py-3">B2B packet (Rs.)</th>
             </tr>
           </thead>
           <tbody>

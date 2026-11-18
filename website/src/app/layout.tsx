@@ -43,6 +43,13 @@ export const metadata: Metadata = {
   alternates: {
     canonical: SITE_URL,
   },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico" },
+    ],
+    apple: [{ url: "/favicon.svg" }],
+  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

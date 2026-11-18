@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bootstrap Yatharth sync-api on the old Vultr VM (45.76.61.16, Jersey Caddy) — retired.
-# Current host is 95.135.254.46 with host nginx; see docs/GO_LIVE_CHECKLIST.md section B.
+# Current host is 95.135.254.73 with host nginx; see docs/GO_LIVE_CHECKLIST.md section B.
 # Run ON the VM as root:
 #   bash /tmp/vm-bootstrap-yatharth-api.sh
 set -euo pipefail
@@ -70,7 +70,7 @@ WEBSITE_ORIGIN=https://yatharthafoods.in
 UPLOAD_DIR=/data/uploads
 VERCEL_REVALIDATE_URL=https://yatharthafoods.in/api/revalidate
 REVALIDATE_WEBHOOK_SECRET=${REVALIDATE_WEBHOOK_SECRET}
-CONTACT_NOTIFY_TO=accounts@yatharthfoods.in
+CONTACT_NOTIFY_TO=accounts@yatharthafoods.in
 CONTACT_NOTIFY_FROM=noreply@yatharthafoods.in
 SMTP_HOST=
 SMTP_PORT=587

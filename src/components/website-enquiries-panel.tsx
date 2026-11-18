@@ -37,11 +37,11 @@ export function WebsiteEnquiriesPanel({ enabled }: { enabled: boolean }) {
   }
 
   useEffect(() => {
-    if (!enabled) return;
-    load();
-    const id = window.setInterval(load, 120_000);
-    return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh when sync toggled on
+    // Do not auto-fetch on Settings mount — VM sync can take many seconds and stalls the page.
+    if (!enabled) {
+      setInquiries(null);
+      setError("");
+    }
   }, [enabled]);
 
   return (
@@ -52,18 +52,18 @@ export function WebsiteEnquiriesPanel({ enabled }: { enabled: boolean }) {
           {inquiries && inquiries.length > 0 ? (
             <Badge tone="warn">{inquiries.length} recent</Badge>
           ) : enabled ? (
-            <Badge tone="ok">Live</Badge>
+            <Badge tone="ok">Ready</Badge>
           ) : (
             <Badge tone="draft">Sync off</Badge>
           )}
         </div>
         <Button type="button" variant="secondary" disabled={pending || !enabled} onClick={load}>
-          {pending ? "Loading…" : "Refresh"}
+          {pending ? "Loading…" : inquiries ? "Refresh" : "Load enquiries"}
         </Button>
       </div>
       <p className="mb-4 text-sm text-muted">
-        Contact form submissions from yatharthafoods.in. Enable Website sync below to pull them from the VM.
-        {enabled ? " Auto-refreshes about every 2 minutes." : ""}
+        Contact form submissions from yatharthafoods.in. Enable Website sync below, then click Load enquiries
+        (avoids a long hang when opening Settings).
       </p>
 
       {!enabled ? (
@@ -73,6 +73,16 @@ export function WebsiteEnquiriesPanel({ enabled }: { enabled: boolean }) {
       ) : null}
 
       {error ? <p className="mb-3 text-sm text-bad">{error}</p> : null}
+
+      {enabled && !inquiries && !error && !pending ? (
+        <p className="rounded-lg border border-line bg-bg px-3 py-3 text-sm text-muted">
+          Click <strong>Load enquiries</strong> to fetch the latest contact-form submissions.
+        </p>
+      ) : null}
+
+      {enabled && pending && !inquiries ? (
+        <p className="rounded-lg border border-line bg-bg px-3 py-3 text-sm text-muted">Loading enquiries…</p>
+      ) : null}
 
       {enabled && inquiries ? (
         <div className="overflow-x-auto rounded-lg border border-line">

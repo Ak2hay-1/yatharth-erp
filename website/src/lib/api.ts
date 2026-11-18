@@ -4,10 +4,12 @@ export type PublicProduct = {
   category: string;
   lane: string;
   tier: string;
+  packType?: string;
   packSize: string;
   unitsPerPkt: number;
   usp: number;
   rateB2b: number;
+  description?: string;
   isActive: boolean;
   sortOrder: number;
   assets?: Array<{ publicUrl: string; title: string; kind: string }>;

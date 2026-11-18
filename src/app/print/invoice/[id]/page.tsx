@@ -15,6 +15,14 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ i
     }),
   ]);
   if (!company || !inv) notFound();
+  if (inv.status === "CANCELLED") {
+    return (
+      <div className="print-sheet mx-auto max-w-4xl p-8 text-sm">
+        <p className="text-danger">Invoice {inv.number} is cancelled and cannot be printed.</p>
+      </div>
+    );
+  }
+  const showGst = inv.cgst + inv.sgst + inv.igst > 0 || (company.gstEnabled && !!company.gstin.trim());
 
   return (
     <div className="print-sheet mx-auto max-w-4xl p-8 text-sm">
@@ -24,13 +32,14 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ i
       <div className="border border-black">
         <div className="border-b border-black px-4 py-3 text-center">
           <img src="/media/logo.png?v=4" alt="YATHARTHA Foods & Beverages" className="mx-auto mb-2 h-10 w-auto bg-transparent object-contain" />
-          <div className="text-xs uppercase tracking-widest">Tax Invoice</div>
+          <div className="text-xs uppercase tracking-widest">{showGst ? "Tax Invoice" : "Invoice"}</div>
           <div className="font-display text-2xl">{company.legalName}</div>
           <div className="text-xs">
             {company.address}, {company.city}, {company.state} {company.pincode}
           </div>
           <div className="text-xs">
-            GSTIN: {company.gstin} · FSSAI: {company.fssai} · {company.phone}
+            {showGst && company.gstin ? <>GSTIN: {company.gstin} · </> : null}
+            FSSAI: {company.fssai} · {company.phone}
           </div>
         </div>
         <div className="grid grid-cols-2 border-b border-black text-xs">
@@ -41,7 +50,7 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ i
             <div>
               {inv.customer.city} {inv.customer.state} {inv.customer.pincode}
             </div>
-            <div>GSTIN: {inv.customer.gstin || "Unregistered"}</div>
+            {showGst ? <div>GSTIN: {inv.customer.gstin || "Unregistered"}</div> : null}
           </div>
           <div className="p-3">
             <div>Invoice no: {inv.number}</div>
@@ -59,10 +68,14 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ i
               <th className="p-2">Lot</th>
               <th className="p-2">Qty</th>
               <th className="p-2">Rate</th>
-              <th className="p-2">Taxable</th>
-              <th className="p-2">GST%</th>
-              <th className="p-2">Tax</th>
-              <th className="p-2">Amount</th>
+              <th className="p-2">{showGst ? "Taxable" : "Amount"}</th>
+              {showGst ? (
+                <>
+                  <th className="p-2">GST%</th>
+                  <th className="p-2">Tax</th>
+                  <th className="p-2">Amount</th>
+                </>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -75,9 +88,13 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ i
                 <td className="p-2">{qty(l.qty, l.item.unit)}</td>
                 <td className="p-2">{money(l.rate)}</td>
                 <td className="p-2">{money(l.taxable)}</td>
-                <td className="p-2">{l.gstRate}%</td>
-                <td className="p-2">{money(l.cgst + l.sgst + l.igst)}</td>
-                <td className="p-2">{money(l.taxable + l.cgst + l.sgst + l.igst)}</td>
+                {showGst ? (
+                  <>
+                    <td className="p-2">{l.gstRate}%</td>
+                    <td className="p-2">{money(l.cgst + l.sgst + l.igst)}</td>
+                    <td className="p-2">{money(l.taxable + l.cgst + l.sgst + l.igst)}</td>
+                  </>
+                ) : null}
               </tr>
             ))}
           </tbody>
@@ -95,22 +112,26 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ i
             ) : null}
           </div>
           <div className="p-3 space-y-1">
-            <div className="flex justify-between">
-              <span>Taxable</span>
-              <span>{money(inv.taxable)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>CGST</span>
-              <span>{money(inv.cgst)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>SGST</span>
-              <span>{money(inv.sgst)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>IGST</span>
-              <span>{money(inv.igst)}</span>
-            </div>
+            {showGst ? (
+              <>
+                <div className="flex justify-between">
+                  <span>Taxable</span>
+                  <span>{money(inv.taxable)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>CGST</span>
+                  <span>{money(inv.cgst)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>SGST</span>
+                  <span>{money(inv.sgst)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>IGST</span>
+                  <span>{money(inv.igst)}</span>
+                </div>
+              </>
+            ) : null}
             <div className="flex justify-between border-t border-black pt-1 font-semibold">
               <span>Grand total</span>
               <span>{money(inv.total)}</span>

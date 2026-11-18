@@ -18,7 +18,12 @@ function filterProducts(products: PublicProduct[], tab: ProductTab, query: strin
   let list = products;
   if (tab === "nuggets") list = list.filter((p) => /nugget/i.test(p.name));
   if (tab === "packs") {
-    list = list.filter((p) => /pack|bulk|horeca|carton/i.test(`${p.name} ${p.packSize}`));
+    list = list.filter(
+      (p) =>
+        p.packType === "HORECA" ||
+        p.unitsPerPkt >= 12 ||
+        /pack|bulk|horeca|carton/i.test(`${p.name} ${p.packSize} ${p.packType ?? ""}`),
+    );
   }
   const needle = query.trim().toLowerCase();
   if (needle) {

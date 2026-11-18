@@ -32,7 +32,8 @@ export default async function PrintChallanPage({ params }: { params: Promise<{ i
           <div className="text-xs uppercase tracking-widest">Delivery Challan</div>
           <div className="font-display text-2xl">{company.legalName}</div>
           <div className="text-xs">
-            GSTIN: {company.gstin} · FSSAI: {company.fssai}
+            {company.gstEnabled && company.gstin ? <>GSTIN: {company.gstin} · </> : null}
+            FSSAI: {company.fssai}
           </div>
         </div>
         <div className="grid grid-cols-2 border-b border-black p-3 text-xs">

@@ -83,13 +83,31 @@ export async function putR2Object(objectKey: string, body: Buffer, contentType: 
   }
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function getR2Object(objectKey: string): Promise<Buffer> {
   const { client, bucket } = r2Client();
-  const result = await client.send(
-    new GetObjectCommand({
-      Bucket: bucket,
-      Key: objectKey,
-    }),
+  const result = await withTimeout(
+    client.send(
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: objectKey,
+      }),
+    ),
+    15_000,
+    "Image storage download",
   );
   if (!result.Body) throw new Error("File missing in image storage.");
   return Buffer.from(await result.Body.transformToByteArray());

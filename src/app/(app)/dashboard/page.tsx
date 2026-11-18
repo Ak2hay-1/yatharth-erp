@@ -12,9 +12,16 @@ function tone(ok: boolean) {
   return ok ? ("ok" as const) : ("bad" as const);
 }
 
+type KpiBadge = "ok" | "bad" | "na";
+
 export default async function DashboardPage() {
   const [d, k] = await Promise.all([getDashboard(), getMentorKpis()]);
   const t = k.targets;
+  const hasSales = k.commercialInvoices > 0 && k.salesTotal > 0;
+  const hasYieldData = k.hasProductionData;
+  const hasRepeatData = k.hasRepeatData;
+  // OTD only meaningful when there were commercial sales with promised deliveries.
+  const hasOtd = k.onTimePct != null && hasSales;
 
   return (
     <div>
@@ -33,23 +40,23 @@ export default async function DashboardPage() {
         <Kpi
           icon={<Target size={18} />}
           label="Contribution %"
-          value={`${k.contributionPct.toFixed(1)}%`}
+          value={hasSales ? `${k.contributionPct.toFixed(1)}%` : "No data"}
           hint={`Target ≥ ${t.contributionPct}%`}
-          badge={tone(k.contributionPct >= t.contributionPct || k.salesTotal === 0)}
+          badge={hasSales ? tone(k.contributionPct >= t.contributionPct) : "na"}
         />
         <Kpi
           icon={<Factory size={18} />}
           label="Production yield"
-          value={`${k.yieldPct.toFixed(1)}%`}
+          value={hasYieldData ? `${k.yieldPct.toFixed(1)}%` : "No data"}
           hint={`Target > ${t.yieldPct}%`}
-          badge={tone(k.yieldPct >= t.yieldPct || k.yieldPct === 0)}
+          badge={hasYieldData ? tone(k.yieldPct >= t.yieldPct) : "na"}
         />
         <Kpi
           icon={<Repeat size={18} />}
           label="Repeat-order rate"
-          value={`${k.repeatPct.toFixed(1)}%`}
+          value={hasRepeatData ? `${k.repeatPct.toFixed(1)}%` : "No data"}
           hint={`Target > ${t.repeatPct}%`}
-          badge={tone(k.repeatPct >= t.repeatPct || k.repeatPct === 0)}
+          badge={hasRepeatData ? tone(k.repeatPct >= t.repeatPct) : "na"}
         />
       </div>
 
@@ -57,30 +64,30 @@ export default async function DashboardPage() {
         <Kpi
           icon={<AlertTriangle size={18} />}
           label="Rejection %"
-          value={`${k.rejectionPct.toFixed(1)}%`}
+          value={hasYieldData ? `${k.rejectionPct.toFixed(1)}%` : "No data"}
           hint={`Target < ${t.rejectionPct}%`}
-          badge={tone(k.rejectionPct <= t.rejectionPct)}
+          badge={hasYieldData ? tone(k.rejectionPct <= t.rejectionPct) : "na"}
         />
         <Kpi
           icon={<PackageMinus size={18} />}
           label="Wastage %"
-          value={`${k.wastagePct.toFixed(1)}%`}
+          value={hasYieldData ? `${k.wastagePct.toFixed(1)}%` : "No data"}
           hint={`Target < ${t.wastagePct}%`}
-          badge={tone(k.wastagePct <= t.wastagePct)}
+          badge={hasYieldData ? tone(k.wastagePct <= t.wastagePct) : "na"}
         />
         <Kpi
           icon={<AlertTriangle size={18} />}
           label="Complaints %"
-          value={`${k.complaintPct.toFixed(1)}%`}
+          value={hasSales ? `${k.complaintPct.toFixed(1)}%` : "No data"}
           hint={`Target < ${t.complaintPct}%`}
-          badge={tone(k.complaintPct <= t.complaintPct)}
+          badge={hasSales ? tone(k.complaintPct <= t.complaintPct) : "na"}
         />
         <Kpi
           icon={<Target size={18} />}
           label="On-time delivery"
-          value={`${k.onTimePct.toFixed(1)}%`}
+          value={hasOtd ? `${k.onTimePct!.toFixed(1)}%` : "No data"}
           hint={`Target > ${t.onTimePct}%`}
-          badge={tone(k.onTimePct >= t.onTimePct)}
+          badge={hasOtd ? tone(k.onTimePct! >= t.onTimePct) : "na"}
         />
       </div>
 
@@ -356,13 +363,15 @@ function Kpi({
   label: string;
   value: string;
   hint: string;
-  badge?: "ok" | "bad";
+  badge?: KpiBadge;
 }) {
   return (
     <Card className="p-5">
       <div className="mb-3 flex items-center justify-between">
         <div className="inline-flex rounded-lg bg-forest/10 p-2 text-forest">{icon}</div>
-        {badge ? <Badge tone={badge}>{badge === "ok" ? "On track" : "Off"}</Badge> : null}
+        {badge === "ok" ? <Badge tone="ok">On track</Badge> : null}
+        {badge === "bad" ? <Badge tone="bad">Off</Badge> : null}
+        {badge === "na" ? <Badge>No data</Badge> : null}
       </div>
       <div className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</div>
       <div className="font-display mt-1 text-2xl">{value}</div>

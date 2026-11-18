@@ -14,9 +14,16 @@ export type TaxLine = {
   amount: number;
 };
 
+export function effectiveGstRate(itemGstRate: number, gstEnabled: boolean) {
+  return gstEnabled ? itemGstRate : 0;
+}
+
 export function taxLine(input: TaxLineInput, interstate: boolean): TaxLine {
   const taxable = round2(input.qty * input.rate);
   const gst = round2((taxable * input.gstRate) / 100);
+  if (gst <= 0) {
+    return { taxable, cgst: 0, sgst: 0, igst: 0, amount: taxable };
+  }
   if (interstate) {
     return { taxable, cgst: 0, sgst: 0, igst: gst, amount: round2(taxable + gst) };
   }
@@ -24,6 +31,12 @@ export function taxLine(input: TaxLineInput, interstate: boolean): TaxLine {
   const cgst = half;
   const sgst = round2(gst - half);
   return { taxable, cgst, sgst, igst: 0, amount: round2(taxable + cgst + sgst) };
+}
+
+export function assertGstReady(company: { gstEnabled: boolean; gstin: string }) {
+  if (company.gstEnabled && !company.gstin.trim()) {
+    throw new Error("GST is enabled but company GSTIN is blank. Set GSTIN in Settings, or turn off Charge GST.");
+  }
 }
 
 export function sumTax(lines: TaxLine[]) {

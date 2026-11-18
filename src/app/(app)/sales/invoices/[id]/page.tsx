@@ -136,7 +136,12 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             </div>
             <div className="flex justify-between">
               <span className="text-muted">Due</span>
-              <span>{money(inv.total - inv.paid)}</span>
+              <span>
+                {inv.status === "CANCELLED" ? money(0) : money(inv.total - inv.paid)}
+                {inv.status === "CANCELLED" ? (
+                  <span className="ml-2 text-xs text-muted">(void)</span>
+                ) : null}
+              </span>
             </div>
             {inv.promisedDate ? (
               <div className="flex justify-between">
@@ -177,35 +182,42 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         {challan ? (
           <Card className="p-5">
             <h2 className="font-display mb-3 text-xl">Cold-chain dispatch checklist · {challan.number}</h2>
-            <ActionForm action={saveDispatchChecklist.bind(null, challan.id)} className="grid gap-3 md:grid-cols-2">
-              <Field label="Vehicle no">
-                <Input name="vehicleNo" defaultValue={challan.vehicleNo} />
-              </Field>
-              <Field label="Dispatched at">
-                <Input
-                  name="dispatchedAt"
-                  type="datetime-local"
-                  defaultValue={challan.dispatchedAt ? toInputDateTime(challan.dispatchedAt) : `${toInputDate()}T09:00`}
-                />
-              </Field>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="freezerOk" defaultChecked={challan.freezerOk} />
-                Product left frozen storage OK
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="sealOk" defaultChecked={challan.sealOk} />
-                Pack seals intact
-              </label>
-              <Field label="Customer freezer note" className="md:col-span-2">
-                <Input name="customerFreezerNote" defaultValue={challan.customerFreezerNote} />
-              </Field>
-              <Field label="Notes" className="md:col-span-2">
-                <Textarea name="notes" defaultValue={challan.notes} />
-              </Field>
-              <div>
-                <SubmitButton>Save dispatch checklist</SubmitButton>
-              </div>
-            </ActionForm>
+            {inv.status === "CONFIRMED" ? (
+              <ActionForm action={saveDispatchChecklist.bind(null, challan.id)} className="grid gap-3 md:grid-cols-2">
+                <Field label="Vehicle no">
+                  <Input name="vehicleNo" defaultValue={challan.vehicleNo} />
+                </Field>
+                <Field label="Dispatched at">
+                  <Input
+                    name="dispatchedAt"
+                    type="datetime-local"
+                    defaultValue={challan.dispatchedAt ? toInputDateTime(challan.dispatchedAt) : `${toInputDate()}T09:00`}
+                  />
+                </Field>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" name="freezerOk" defaultChecked={challan.freezerOk} />
+                  Product left frozen storage OK
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" name="sealOk" defaultChecked={challan.sealOk} />
+                  Pack seals intact
+                </label>
+                <Field label="Customer freezer note" className="md:col-span-2">
+                  <Input name="customerFreezerNote" defaultValue={challan.customerFreezerNote} />
+                </Field>
+                <Field label="Notes" className="md:col-span-2">
+                  <Textarea name="notes" defaultValue={challan.notes} />
+                </Field>
+                <div>
+                  <SubmitButton>Save dispatch checklist</SubmitButton>
+                </div>
+              </ActionForm>
+            ) : (
+              <p className="text-sm text-muted">
+                Dispatch checklist is locked because this invoice is {inv.status.toLowerCase()}.
+                {challan.vehicleNo ? ` Vehicle: ${challan.vehicleNo}.` : ""}
+              </p>
+            )}
           </Card>
         ) : null}
       </div>

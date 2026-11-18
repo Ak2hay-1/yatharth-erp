@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "SyncedProduct" ADD COLUMN IF NOT EXISTS "packType" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "SyncedProduct" ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT '';

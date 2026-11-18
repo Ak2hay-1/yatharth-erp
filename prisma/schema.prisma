@@ -146,10 +146,11 @@ model User {
 }
 
 model Company {
-  id                   String @id @default("default")
+  id                   String  @id @default("default")
   name                 String
   legalName            String
   gstin                String
+  gstEnabled           Boolean @default(false)
   fssai                String
   address              String
   city                 String
@@ -189,6 +190,7 @@ model Item {
   tier          SkuTier     @default(NONE)
   packType      PackType    @default(NONE)
   packSize      String      @default("")
+  websiteDescription String @default("")
   gateTaste     Boolean     @default(false)
   gateCost      Boolean     @default(false)
   gateMargin    Boolean     @default(false)

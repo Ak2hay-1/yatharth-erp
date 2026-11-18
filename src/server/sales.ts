@@ -6,7 +6,7 @@ import { prisma, withTransaction } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { OPS } from "@/lib/permissions";
 import { addDays, parseCalendarDateTime, requireCalendarDate, requiredString, startOfTodayIst } from "@/lib/utils";
-import { isInterstate, sumTax, taxLine, type TaxLine } from "@/lib/gst";
+import { assertGstReady, effectiveGstRate, isInterstate, sumTax, taxLine, type TaxLine } from "@/lib/gst";
 import { nextNumberTx } from "@/server/numbers";
 import { assertFefo, consumeStockLines, postStockAdjustments } from "@/server/stock";
 import { assertCreditOk } from "@/server/credit";
@@ -136,7 +136,8 @@ async function invoiceLineTotal(tx: Prisma.TransactionClient, lines: Line[], cus
   for (const line of lines) {
     const item = itemMap[line.itemId];
     if (!item) throw new Error("Item missing");
-    total += taxLine({ qty: line.qty, rate: line.rate, gstRate: item.gstRate }, interstate).amount;
+    const gstRate = effectiveGstRate(item.gstRate, company.gstEnabled);
+    total += taxLine({ qty: line.qty, rate: line.rate, gstRate }, interstate).amount;
   }
   return total;
 }
@@ -159,6 +160,7 @@ async function buildInvoiceFromLines(
   const company = await tx.company.findUnique({ where: { id: "default" } });
   const customer = await tx.party.findUnique({ where: { id: input.customerId } });
   if (!company || !customer) throw new Error("Company or customer missing");
+  if (input.confirm) assertGstReady(company);
   const interstate = isInterstate(company.stateCode, customer.stateCode);
   const items = await tx.item.findMany({
     where: { id: { in: input.lines.map((l) => l.itemId) } },
@@ -170,7 +172,8 @@ async function buildInvoiceFromLines(
     for (const line of input.lines) {
       const item = itemMap[line.itemId];
       if (!item) throw new Error("Item missing");
-      extra += taxLine({ qty: line.qty, rate: line.rate, gstRate: item.gstRate }, interstate).amount;
+      const gstRate = effectiveGstRate(item.gstRate, company.gstEnabled);
+      extra += taxLine({ qty: line.qty, rate: line.rate, gstRate }, interstate).amount;
     }
     await assertCreditOk(tx, input.customerId, extra);
   }
@@ -222,11 +225,12 @@ async function buildInvoiceFromLines(
   input.lines.forEach((line, index) => {
     const item = itemMap[line.itemId];
     if (!item) throw new Error("Item missing");
-    const tax = taxLine({ qty: line.qty, rate: line.rate, gstRate: item.gstRate }, interstate);
+    const gstRate = effectiveGstRate(item.gstRate, company.gstEnabled);
+    const tax = taxLine({ qty: line.qty, rate: line.rate, gstRate }, interstate);
     computed.push(tax);
     if (input.confirm) {
       for (const pick of picksByLine[index] ?? []) {
-        const pickTax = taxLine({ qty: pick.qty, rate: line.rate, gstRate: item.gstRate }, interstate);
+        const pickTax = taxLine({ qty: pick.qty, rate: line.rate, gstRate }, interstate);
         lineRows.push({
           invoiceId: invoice.id,
           itemId: line.itemId,
@@ -234,7 +238,7 @@ async function buildInvoiceFromLines(
           qty: pick.qty,
           rate: line.rate,
           hsn: item.hsn,
-          gstRate: item.gstRate,
+          gstRate,
           taxable: pickTax.taxable,
           cgst: pickTax.cgst,
           sgst: pickTax.sgst,
@@ -249,7 +253,7 @@ async function buildInvoiceFromLines(
         qty: line.qty,
         rate: line.rate,
         hsn: item.hsn,
-        gstRate: item.gstRate,
+        gstRate,
         taxable: tax.taxable,
         cgst: tax.cgst,
         sgst: tax.sgst,
@@ -350,6 +354,7 @@ export async function confirmInvoice(id: string) {
     const company = await tx.company.findUnique({ where: { id: "default" } });
     const customer = invoice.customer;
     if (!company || !customer) throw new Error("Company or customer missing");
+    assertGstReady(company);
     const interstate = isInterstate(company.stateCode, customer.stateCode);
     const items = await tx.item.findMany({
       where: { id: { in: [...new Set([...grouped.values()].map((l) => l.itemId))] } },
@@ -361,7 +366,8 @@ export async function confirmInvoice(id: string) {
       for (const line of grouped.values()) {
         const item = itemMap[line.itemId];
         if (!item) throw new Error("Item missing");
-        extra += taxLine({ qty: line.qty, rate: line.rate, gstRate: item.gstRate }, interstate).amount;
+        const gstRate = effectiveGstRate(item.gstRate, company.gstEnabled);
+        extra += taxLine({ qty: line.qty, rate: line.rate, gstRate }, interstate).amount;
       }
       await assertCreditOk(tx, invoice.customerId, extra, id);
     }
@@ -395,8 +401,9 @@ export async function confirmInvoice(id: string) {
     groupedLines.forEach((line, index) => {
       const item = itemMap[line.itemId];
       if (!item) throw new Error("Item missing");
+      const gstRate = effectiveGstRate(item.gstRate, company.gstEnabled);
       for (const pick of picksByLine[index] ?? []) {
-        const tax = taxLine({ qty: pick.qty, rate: line.rate, gstRate: item.gstRate }, interstate);
+        const tax = taxLine({ qty: pick.qty, rate: line.rate, gstRate }, interstate);
         computed.push(tax);
         lineRows.push({
           invoiceId: invoice.id,
@@ -405,7 +412,7 @@ export async function confirmInvoice(id: string) {
           qty: pick.qty,
           rate: line.rate,
           hsn: item.hsn,
-          gstRate: item.gstRate,
+          gstRate,
           taxable: tax.taxable,
           cgst: tax.cgst,
           sgst: tax.sgst,
@@ -552,7 +559,8 @@ export async function updateDraftInvoice(id: string, formData: FormData) {
     for (const line of lines) {
       const item = itemMap[line.itemId];
       if (!item) throw new Error("Item missing");
-      const tax = taxLine({ qty: line.qty, rate: line.rate, gstRate: item.gstRate }, interstate);
+      const gstRate = effectiveGstRate(item.gstRate, company.gstEnabled);
+      const tax = taxLine({ qty: line.qty, rate: line.rate, gstRate }, interstate);
       computed.push(tax);
       lineRows.push({
         invoiceId: id,
@@ -560,7 +568,7 @@ export async function updateDraftInvoice(id: string, formData: FormData) {
         qty: line.qty,
         rate: line.rate,
         hsn: item.hsn,
-        gstRate: item.gstRate,
+        gstRate,
         taxable: tax.taxable,
         cgst: tax.cgst,
         sgst: tax.sgst,
@@ -697,6 +705,14 @@ export async function repeatFromInvoice(invoiceId: string) {
 export async function saveDispatchChecklist(id: string, formData: FormData) {
   return runAction(async () => {
   await requireRole(OPS);
+  const existing = await prisma.deliveryChallan.findUnique({
+    where: { id },
+    select: { invoiceId: true, invoice: { select: { status: true } } },
+  });
+  if (!existing) throw new Error("Challan not found.");
+  if (existing.invoice.status !== "CONFIRMED") {
+    throw new Error("Dispatch checklist can only be saved on a confirmed invoice.");
+  }
   await prisma.deliveryChallan.update({
     where: { id },
     data: {
@@ -714,9 +730,8 @@ export async function saveDispatchChecklist(id: string, formData: FormData) {
       notes: String(formData.get("notes") ?? ""),
     },
   });
-  const challan = await prisma.deliveryChallan.findUnique({ where: { id }, select: { invoiceId: true } });
   revalidatePath("/sales/invoices");
-  if (challan) revalidatePath(`/sales/invoices/${challan.invoiceId}`);
+  revalidatePath(`/sales/invoices/${existing.invoiceId}`);
   revalidatePath("/dashboard");
   });
 }

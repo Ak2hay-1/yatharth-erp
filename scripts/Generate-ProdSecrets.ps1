@@ -43,7 +43,7 @@ $auth = New-HexSecret 32
   "NEXT_PUBLIC_API_URL=https://api.yatharthafoods.in"
   ""
   "# Optional contact email (SMTP)"
-  "CONTACT_NOTIFY_TO=accounts@yatharthfoods.in"
+  "CONTACT_NOTIFY_TO=accounts@yatharthafoods.in"
   "CONTACT_NOTIFY_FROM=noreply@yatharthafoods.in"
   "SMTP_HOST="
   "SMTP_PORT=587"

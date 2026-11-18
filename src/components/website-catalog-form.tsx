@@ -151,8 +151,28 @@ export function WebsiteCatalogForm({ item }: { item?: CatalogItem }) {
         <Input name="packSize" defaultValue={item?.packSize} placeholder="10 x 80 g / 1 kg" />
       </Field>
 
+      <Field label="Website description" className="md:col-span-2">
+        <Input
+          name="websiteDescription"
+          defaultValue={item?.websiteDescription ?? ""}
+          placeholder="Short product blurb for the public product page"
+        />
+      </Field>
+
       <Field label="Veg / non-veg">
-        <Select name="vegNonVeg" defaultValue={item?.label?.vegNonVeg ?? "NA"} required>
+        <Select
+          name="vegNonVeg"
+          defaultValue={
+            item?.label?.vegNonVeg && item.label.vegNonVeg !== "NA"
+              ? item.label.vegNonVeg
+              : item?.lane === "CHICKEN"
+                ? "NON_VEG"
+                : item?.lane && item.lane !== "NONE"
+                  ? "VEG"
+                  : "NA"
+          }
+          required
+        >
           <option value="NA">—</option>
           <option value="VEG">Vegetarian</option>
           <option value="NON_VEG">Non-vegetarian</option>
@@ -166,10 +186,10 @@ export function WebsiteCatalogForm({ item }: { item?: CatalogItem }) {
         />
       </Field>
 
-      <Field label="USP (₹)">
+      <Field label="USP unit price (₹)">
         <Input name="usp" type="number" step="0.01" min="0" defaultValue={item?.usp ?? 0} />
       </Field>
-      <Field label="B2B rate (₹)">
+      <Field label="B2B packet rate (₹)">
         <Input name="rateB2b" type="number" step="0.01" min="0" defaultValue={item?.rateB2b ?? 0} />
       </Field>
 

@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/session";
 import { MANAGEMENT, OPS, can } from "@/lib/permissions";
 import { Card, PageHeader, Empty, Button } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
+import { MediaPreview } from "@/components/media-preview";
 import { ProductAssetUploadForm } from "@/components/product-asset-upload-form";
 import { deleteProductAsset } from "@/server/product-assets";
 import { formatDate } from "@/lib/utils";
@@ -71,12 +72,7 @@ export default async function MediaPage({
                   return (
                     <li key={a.id} className="rounded-lg border border-line p-3">
                       {isImage ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`/api/product-assets/${a.id}`}
-                          alt={a.title || a.fileName}
-                          className="mb-2 h-40 w-full rounded-md object-cover bg-bg"
-                        />
+                        <MediaPreview src={`/api/product-assets/${a.id}`} alt={a.title || a.fileName} />
                       ) : (
                         <div className="mb-2 flex h-40 items-center justify-center rounded-md bg-bg text-sm text-muted">
                           {a.fileName}

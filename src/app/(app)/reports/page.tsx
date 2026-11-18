@@ -20,10 +20,19 @@ export default async function ReportsPage({
 }) {
   const unallocatedOnly = (await searchParams).unallocated === "1";
   const start = startOfTodayIst();
+  const end = endOfDayIst(start);
   const in30 = endOfDayIst(addDays(start, 30));
   const kpis = await getMentorKpis();
 
-  const [invoices, bills, batches, production, wasteMoves, payments] = await Promise.all([
+  const batchSelect = {
+    id: true,
+    lotNo: true,
+    qtyOnHand: true,
+    expiryDate: true,
+    item: { select: { name: true, unit: true } },
+  } as const;
+
+  const [invoices, bills, expiringBatches, expiredBatches, production, wasteMoves, payments] = await Promise.all([
     prisma.invoice.findMany({
       where: { status: "CONFIRMED" },
       select: {
@@ -56,14 +65,14 @@ export default async function ReportsPage({
       take: 100,
     }),
     prisma.batch.findMany({
-      where: { qtyOnHand: { gt: 0 }, expiryDate: { lte: in30 } },
-      select: {
-        id: true,
-        lotNo: true,
-        qtyOnHand: true,
-        expiryDate: true,
-        item: { select: { name: true, unit: true } },
-      },
+      where: { qtyOnHand: { gt: 0 }, expiryDate: { gt: end, lte: in30 } },
+      select: batchSelect,
+      orderBy: { expiryDate: "asc" },
+      take: 100,
+    }),
+    prisma.batch.findMany({
+      where: { qtyOnHand: { gt: 0 }, expiryDate: { lte: end } },
+      select: batchSelect,
       orderBy: { expiryDate: "asc" },
       take: 100,
     }),
@@ -410,10 +419,10 @@ export default async function ReportsPage({
 
         <Card className="p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-display text-xl">Expiry within 30 days</h2>
+            <h2 className="font-display text-xl">Expiring within 30 days</h2>
             <ExportLink kind="expiry" />
           </div>
-          {batches.length === 0 ? (
+          {expiringBatches.length === 0 ? (
             <Empty>No lots expiring soon.</Empty>
           ) : (
             <Table>
@@ -426,13 +435,51 @@ export default async function ReportsPage({
                 </tr>
               </thead>
               <tbody>
-                {batches.map((b) => (
+                {expiringBatches.map((b) => (
                   <tr key={b.id}>
                     <Td>{b.item.name}</Td>
                     <Td className="font-mono text-xs">{b.lotNo}</Td>
                     <Td>{qty(b.qtyOnHand, b.item.unit)}</Td>
                     <Td>
                       <Badge tone="warn">{formatDate(b.expiryDate)}</Badge>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+
+        <Card className="p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-xl">
+              Expired stock
+              {expiredBatches.length > 0
+                ? ` · ${expiredBatches.reduce((s, b) => s + b.qtyOnHand, 0).toLocaleString("en-IN")} units`
+                : ""}
+            </h2>
+            <ExportLink kind="expired" />
+          </div>
+          {expiredBatches.length === 0 ? (
+            <Empty>No expired stock on hand.</Empty>
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Item</Th>
+                  <Th>Lot</Th>
+                  <Th>Qty</Th>
+                  <Th>Expired</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {expiredBatches.map((b) => (
+                  <tr key={b.id}>
+                    <Td>{b.item.name}</Td>
+                    <Td className="font-mono text-xs">{b.lotNo}</Td>
+                    <Td>{qty(b.qtyOnHand, b.item.unit)}</Td>
+                    <Td>
+                      <Badge tone="bad">{formatDate(b.expiryDate)}</Badge>
                     </Td>
                   </tr>
                 ))}

@@ -125,14 +125,17 @@ export async function getMentorKpis(ref = new Date()) {
     .reduce((s, m) => s + Math.abs(m.qty), 0);
   const wastagePct = pct(prodWaste + freezerReturnWaste, good + prodWaste);
 
-  const otdDenom = commercialInvoices.filter((i) => i.promisedDate || i.salesOrder?.promisedDate);
+  // Only count invoices that actually dispatched (have a challan) against a promised date.
+  const otdDenom = commercialInvoices.filter(
+    (i) => (i.promisedDate || i.salesOrder?.promisedDate) && i.challans[0],
+  );
   const onTime = otdDenom.filter((i) => {
     const promised = i.promisedDate ?? i.salesOrder?.promisedDate;
-    const delivered = i.challans[0]?.date ?? i.date;
-    if (!promised) return true;
+    const delivered = i.challans[0]?.date;
+    if (!promised || !delivered) return false;
     return delivered.getTime() <= promised.getTime() + 86400000 - 1;
   });
-  const onTimePct = otdDenom.length ? pct(onTime.length, otdDenom.length) : 100;
+  const onTimePct = otdDenom.length ? pct(onTime.length, otdDenom.length) : null;
 
   const complaintPct = pct(complaints.length, commercialInvoices.length);
 
@@ -247,6 +250,8 @@ export async function getMentorKpis(ref = new Date()) {
     contributionPct: contrib.pct,
     cost: contrib.cost,
     yieldPct,
+    hasProductionData: planned > 0,
+    hasRepeatData: withOrders.length > 0,
     rejectionPct,
     wastagePct,
     onTimePct,

@@ -14,10 +14,12 @@ model SyncedProduct {
   category     String
   lane         String   @default("")
   tier         String   @default("")
+  packType     String   @default("")
   packSize     String   @default("")
   unitsPerPkt  Int      @default(1)
   usp          Float    @default(0)
   rateB2b      Float    @default(0)
+  description  String   @default("")
   isActive     Boolean  @default(true)
   sortOrder    Int      @default(0)
   erpUpdatedAt DateTime?

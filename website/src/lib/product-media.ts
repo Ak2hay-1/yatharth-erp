@@ -32,12 +32,20 @@ export function productImageSrc(product: Pick<PublicProduct, "sku" | "name" | "c
   return "/marketing/category-veg-patties.jpg";
 }
 
-export function productSummary(product: Pick<PublicProduct, "name" | "category">) {
+export function productSummary(
+  product: Pick<PublicProduct, "name" | "category" | "description">,
+) {
+  const custom = product.description?.trim();
+  if (custom) return custom;
   const kind = /nugget/i.test(product.name)
     ? "nuggets"
-    : isVegProduct(product.category)
-      ? "vegetarian patties"
-      : "chicken patties";
+    : /ball/i.test(product.name)
+      ? "chicken cheese balls"
+      : /gravy|butter chicken|pav bhaji/i.test(product.name)
+        ? "ready-to-cook frozen food"
+        : isVegProduct(product.category)
+          ? "vegetarian patties"
+          : "chicken patties";
   return `Frozen ${kind} for restaurants, cafes, hotels and distributors. Packed for consistent taste and cold-chain supply from our Pune plant.`;
 }
 
